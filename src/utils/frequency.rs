@@ -48,7 +48,16 @@ pub fn hz_to_svara_c(frequencies: &[f32], Sa: f32, mela: Option<usize>) -> Vec<S
     }).collect()
 }
 
-pub fn hz_to_fjs(_frequencies: &[f32], _fmin: Option<f32>, _unison: Option<f32>) -> Vec<String> { unimplemented!() }
+pub fn hz_to_fjs(frequencies: &[f32], fmin: Option<f32>, unison: Option<f32>) -> Vec<String> {
+    let fmin = fmin.unwrap_or(16.35); // C0
+    let unison = unison.unwrap_or(1.0);
+    frequencies.iter().map(|&f| {
+        let octaves = (f / fmin).log2().floor();
+        let interval = f / (fmin * 2.0f32.powf(octaves)) / unison;
+        let ratio = notation::interval_to_fjs(interval, Some(1.0));
+        format!("C{} {}", octaves as i32, ratio)
+    }).collect()
+}
 
 pub fn midi_to_hz(notes: &[f32]) -> Vec<f32> {
     notes.iter().map(|&n| 440.0 * 2.0f32.powf((n - 69.0) / 12.0)).collect()
