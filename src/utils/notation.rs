@@ -123,8 +123,27 @@ pub fn list_thaat() -> Vec<String> {
     ]
 }
 
+pub fn fifths_to_note(unison: &str, fifths: i32, unicode: Option<bool>) -> String {
+    let unicode = unicode.unwrap_or(false);
+    let semitones = (fifths * 7) % 12;
+    let octave_shift = (fifths * 7) / 12;
+    let base = match unison.to_lowercase().as_str() {
+        "c" => 0, "c#" | "db" => 1, "d" => 2, "d#" | "eb" => 3, "e" => 4,
+        "f" => 5, "f#" | "gb" => 6, "g" => 7, "g#" | "ab" => 8, "a" => 9,
+        "a#" | "bb" => 10, "b" => 11, _ => 0,
+    };
+    let note_idx = (base + semitones + 12) % 12;
+    let note = match note_idx {
+        0 => "C", 1 => if unicode { "C♯" } else { "C#" }, 2 => "D",
+        3 => if unicode { "D♯" } else { "D#" }, 4 => "E", 5 => "F",
+        6 => if unicode { "F♯" } else { "F#" }, 7 => "G",
+        8 => if unicode { "G♯" } else { "G#" }, 9 => "A",
+        10 => if unicode { "A♯" } else { "A#" }, 11 => "B",
+        _ => "C",
+    };
+    format!("{}{}", note, if octave_shift != 0 { octave_shift.to_string() } else { "".to_string() })
+}
 
-pub fn fifths_to_note(_unison: &str, _fifths: i32, _unicode: Option<bool>) -> String { unimplemented!() }
 pub fn interval_to_fjs(_interval: f32, _unison: Option<f32>) -> String { unimplemented!() }
 pub fn interval_frequencies(_n_bins: usize, _fmin: f32, _intervals: &[f32]) -> Vec<f32> { unimplemented!() }
 pub fn pythagorean_intervals(_bins_per_octave: Option<usize>) -> Vec<f32> { unimplemented!() }
