@@ -367,3 +367,21 @@ pub fn tonnetz(
     ]).unwrap();
     transform.dot(chroma)
 }
+
+pub fn zero_crossing_rate(
+    y: &[f32],
+    frame_length: Option<usize>,
+    hop_length: Option<usize>,
+) -> Array1<f32> {
+    let frame_len = frame_length.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(frame_len / 4);
+    let n_frames = (y.len() - frame_len) / hop + 1;
+    let mut zcr = Array1::zeros(n_frames);
+    for i in 0..n_frames {
+        let start = i * hop;
+        let slice = &y[start..(start + frame_len).min(y.len())];
+        let count = slice.windows(2).filter(|w| w[0] * w[1] < 0.0).count();
+        zcr[i] = count as f32 / frame_len as f32;
+    }
+    zcr
+}
