@@ -159,3 +159,27 @@ pub fn mfcc(
     }
     mfcc
 }
+
+pub fn rms(
+    y: Option<&[f32]>,
+    S: Option<&Array2<f32>>,
+    frame_length: Option<usize>,
+    hop_length: Option<usize>,
+) -> Array1<f32> {
+    let frame_len = frame_length.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(frame_len / 4);
+    match (y, S) {
+        (Some(y), None) => {
+            let n_frames = (y.len() - frame_len) / hop + 1;
+            let mut rms = Array1::zeros(n_frames);
+            for i in 0..n_frames {
+                let start = i * hop;
+                let slice = &y[start..(start + frame_len).min(y.len())];
+                rms[i] = f32::sqrt(slice.iter().map(|x| x.powi(2)).sum::<f32>() / slice.len() as f32);
+            }
+            rms
+        }
+        (None, Some(S)) => S.map_axis(Axis(0), |row| f32::sqrt(row.iter().map(|x| x.powi(2)).sum::<f32>() / row.len() as f32)),
+        _ => panic!("Must provide either y or S"),
+    }
+}
