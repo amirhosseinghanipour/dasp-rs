@@ -168,3 +168,18 @@ pub fn interval_frequencies(n_bins: usize, fmin: f32, intervals: &[f32]) -> Vec<
     }
     freqs
 }
+
+pub fn pythagorean_intervals(bins_per_octave: Option<usize>) -> Vec<f32> {
+    let bins = bins_per_octave.unwrap_or(12);
+    let mut intervals = Vec::with_capacity(bins);
+    let fifth = 3.0 / 2.0;
+    let mut ratio = 1.0;
+    for i in 0..bins {
+        intervals.push(ratio);
+        ratio *= if i % 2 == 0 { fifth } else { 1.0 / fifth };
+        while ratio > 2.0 { ratio /= 2.0; }
+        while ratio < 1.0 { ratio *= 2.0; }
+    }
+    intervals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    intervals
+}
