@@ -49,7 +49,7 @@ pub fn hz_to_svara_c(frequencies: &[f32], Sa: f32, mela: Option<usize>) -> Vec<S
 }
 
 pub fn hz_to_fjs(frequencies: &[f32], fmin: Option<f32>, unison: Option<f32>) -> Vec<String> {
-    let fmin = fmin.unwrap_or(16.35); // C0
+    let fmin = fmin.unwrap_or(16.35);
     let unison = unison.unwrap_or(1.0);
     frequencies.iter().map(|&f| {
         let octaves = (f / fmin).log2().floor();
@@ -72,8 +72,42 @@ pub fn midi_to_note(midi: &[f32], octave: Option<bool>, _cents: Option<bool>, _k
     }).collect()
 }
 
-pub fn midi_to_svara_h(_midi: &[f32], _Sa: f32, _abbr: Option<bool>, _octave: Option<bool>) -> Vec<String> { unimplemented!() }
-pub fn midi_to_svara_c(_midi: &[f32], _Sa: f32, _mela: Option<usize>, _abbr: Option<bool>) -> Vec<String> { unimplemented!() }
+pub fn midi_to_svara_h(midi: &[f32], Sa: f32, abbr: Option<bool>, octave: Option<bool>) -> Vec<String> {
+    let abbr = abbr.unwrap_or(false);
+    let octave = octave.unwrap_or(false);
+    let midi_Sa = hz_to_midi(&[Sa])[0];
+    let svara_names = if abbr {
+        vec!["S", "R1", "R2", "G1", "G2", "M1", "M2", "P", "D1", "D2", "N1", "N2"]
+    } else {
+        vec!["Shadjam", "Shuddha Rishabham", "Chatushruti Rishabham",
+             "Shuddha Gandharam", "Sadharana Gandharam", "Shuddha Madhyamam",
+             "Prati Madhyamam", "Panchamam", "Shuddha Dhaivatam", "Chatushruti Dhaivatam",
+             "Shuddha Nishadam", "Kaisiki Nishadam"]
+    };
+    midi.iter().map(|&m| {
+        let degree = ((m - midi_Sa + 0.5).round() as i32 % 12 + 12) % 12;
+        let oct = if octave { format!("{}", (m - midi_Sa).round() as i32 / 12) } else { "".to_string() };
+        format!("{}{}", svara_names[degree as usize], oct)
+    }).collect()
+}
+
+pub fn midi_to_svara_c(midi: &[f32], Sa: f32, mela: Option<usize>, abbr: Option<bool>) -> Vec<String> {
+    let mela = mela.unwrap_or(29);
+    let abbr = abbr.unwrap_or(false);
+    let degrees = notation::mela_to_degrees(mela);
+    let midi_Sa = hz_to_midi(&[Sa])[0];
+    midi.iter().map(|&m| {
+        let semitone = ((m - midi_Sa + 0.5).round() as i32 % 12 + 12) % 12;
+        let idx = degrees.iter().position(|&d| d == semitone as usize).unwrap_or(0);
+        let base = match idx {
+            0 => "S", 1..=3 => "R", 4..=6 => "G", 7 => "M", 8 => "P", 9..=11 => "D", 12..=14 => "N", _ => "S",
+        };
+        let variant = match degrees[idx] % 12 {
+            1 => "1", 2 => "2", 3 => "3", 5 => "1", 6 => "2", 7 => "3", 8 => "1", 9 => "2", 10 => "3", _ => "",
+        };
+        if abbr { format!("{}{}", base, variant) } else { notation::mela_to_svara(mela, Some(false), Some(false))[idx].clone() }
+    }).collect()
+}
 
 pub fn note_to_hz(note: &[&str]) -> Vec<f32> {
     note.iter().map(|&n| {
