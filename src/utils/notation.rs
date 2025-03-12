@@ -157,3 +157,14 @@ pub fn interval_to_fjs(interval: f32, unison: Option<f32>) -> String {
     }
 }
 
+pub fn interval_frequencies(n_bins: usize, fmin: f32, intervals: &[f32]) -> Vec<f32> {
+    let mut freqs = Vec::with_capacity(n_bins);
+    let mut f = fmin;
+    let mut interval_idx = 0;
+    for _ in 0..n_bins {
+        freqs.push(f);
+        f *= intervals[interval_idx % intervals.len()];
+        interval_idx += 1;
+    }
+    freqs
+}
