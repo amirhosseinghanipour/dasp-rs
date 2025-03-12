@@ -475,3 +475,31 @@ pub fn pitch_chroma(
     chroma
 }
 
+pub fn cmvn(
+    features: &Array2<f32>,
+    axis: Option<isize>,
+    variance_normalize: Option<bool>,
+) -> Array2<f32> {
+    let axis = axis.unwrap_or(-1);
+    let ax = if axis < 0 { 1 } else { 0 };
+    let var_norm = variance_normalize.unwrap_or(true);
+
+    let mean = features.mean_axis(Axis(ax)).unwrap();
+    let mut normalized = features.to_owned();
+
+    for i in 0..normalized.shape()[1 - ax] {
+        let mut slice = normalized.index_axis_mut(Axis(1 - ax), i);
+        slice -= &mean;
+    }
+
+    if var_norm {
+        let variance = features.var_axis(Axis(ax), 0.0);
+        let std_dev = variance.mapv(|x| x.max(1e-10).sqrt());
+        for i in 0..normalized.shape()[1 - ax] {
+            let mut slice = normalized.index_axis_mut(Axis(1 - ax), i);
+            slice /= &std_dev;
+        }
+    }
+
+    normalized
+}
