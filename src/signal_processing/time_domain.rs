@@ -1,4 +1,5 @@
 use crate::audio_io::AudioError;
+use ndarray::Array1;
 
 pub fn autocorrelate(y: &[f32], max_size: Option<usize>, axis: Option<isize>) -> Vec<f32> {
     let max_lag = max_size.unwrap_or(y.len());
@@ -73,4 +74,24 @@ pub fn mu_expand(x: &[f32], mu: Option<f32>, quantize: Option<bool>) -> Vec<f32>
         let sign = if v >= 0.0 { 1.0 } else { -1.0 };
         sign * (mu_val.ln() * v.abs()).exp() / mu_val
     }).collect()
+}
+
+pub fn log_energy(
+    y: &[f32],
+    frame_length: Option<usize>,
+    hop_length: Option<usize>,
+) -> Array1<f32> {
+    let frame_len = frame_length.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(frame_len / 4);
+    let n_frames = (y.len() - frame_len) / hop + 1;
+    let mut energy = Array1::zeros(n_frames);
+
+    for i in 0..n_frames {
+        let start = i * hop;
+        let frame = &y[start..(start + frame_len).min(y.len())];
+        let e = frame.iter().map(|&x| x.powi(2)).sum::<f32>();
+        energy[i] = (e + 1e-10).ln();
+    }
+
+    energy
 }
