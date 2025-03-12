@@ -67,3 +67,25 @@ pub fn chroma_cqt(
     chroma
 }
 
+pub fn chroma_cens(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    C: Option<&Array2<f32>>,
+    hop_length: Option<usize>,
+    fmin: Option<f32>,
+    bins_per_octave: Option<usize>,
+    win_length: Option<usize>,
+) -> Array2<f32> {
+    let mut chroma = chroma_cqt(y, sr, C, hop_length, fmin, bins_per_octave);
+    let win = win_length.unwrap_or(41);
+    let half_win = win / 2;
+    let mut cens = Array2::zeros(chroma.dim());
+    for t in 0..chroma.shape()[1] {
+        let slice = chroma.slice(s![.., t.saturating_sub(half_win)..(t + half_win + 1).min(chroma.shape()[1])]);
+        let norm = slice.mapv(|x| x.powi(2)).sum_axis(Axis(1)).mapv(f32::sqrt);
+        for p in 0..12 {
+            cens[[p, t]] = if norm[p] > 1e-6 { chroma[[p, t]] / norm[p] } else { 0.0 };
+        }
+    }
+    cens
+}
