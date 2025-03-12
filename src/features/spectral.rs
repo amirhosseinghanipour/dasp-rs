@@ -503,3 +503,58 @@ pub fn cmvn(
 
     normalized
 }
+
+pub fn hpss(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    S: Option<&Array2<f32>>,
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+    harm_win: Option<usize>,
+    perc_win: Option<usize>,
+) -> (Array2<f32>, Array2<f32>) {
+    let sr = sr.unwrap_or(44100);
+    let n_fft = n_fft.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(n_fft / 4);
+    let harm_win = harm_win.unwrap_or(31);
+    let perc_win = perc_win.unwrap_or(31);
+    let S = match (y, S) {
+        (Some(y), None) => stft(y, Some(n_fft), Some(hop), None)
+            .expect("STFT failed")
+            .mapv(|x| x.norm().powi(2)),
+        (None, Some(S)) => S.to_owned(),
+        _ => panic!("Must provide either y or S"),
+    };
+
+    let mut harmonic = Array2::zeros(S.dim());
+    for f in 0..S.shape()[0] {
+        let row = S.index_axis(Axis(0), f);
+        for t in 0..S.shape()[1] {
+            let start = t.saturating_sub(harm_win / 2);
+            let end = (t + harm_win / 2 + 1).min(S.shape()[1]);
+            let mut slice: Vec<f32> = row.slice(s![start..end]).to_vec();
+            slice.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            harmonic[[f, t]] = slice[slice.len() / 2];
+        }
+    }
+
+    let mut percussive = Array2::zeros(S.dim());
+    for t in 0..S.shape()[1] {
+        let col = S.index_axis(Axis(1), t);
+        for f in 0..S.shape()[0] {
+            let start = f.saturating_sub(perc_win / 2);
+            let end = (f + perc_win / 2 + 1).min(S.shape()[0]);
+            let mut slice: Vec<f32> = col.slice(s![start..end]).to_vec();
+            slice.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            percussive[[f, t]] = slice[slice.len() / 2];
+        }
+    }
+
+    let total = harmonic.clone() + percussive.clone();
+    let harm_mask = &harmonic / &total.mapv(|x| if x > 0.0 { x } else { 1.0 });
+    let perc_mask = &percussive / &total.mapv(|x| if x > 0.0 { x } else { 1.0 });
+    (
+        S.to_owned() * &harm_mask,
+        S.to_owned() * &perc_mask,
+    )
+}
