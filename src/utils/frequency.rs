@@ -11,7 +11,24 @@ pub fn hz_to_midi(frequencies: &[f32]) -> Vec<f32> {
     frequencies.iter().map(|&f| 12.0 * (f / 440.0).log2() + 69.0).collect()
 }
 
-pub fn hz_to_svara_h(_frequencies: &[f32], _Sa: f32, _abbr: Option<bool>) -> Vec<String> { unimplemented!() }
+pub fn hz_to_svara_h(frequencies: &[f32], Sa: f32, abbr: Option<bool>) -> Vec<String> {
+    let abbr = abbr.unwrap_or(false);
+    let midi_Sa = hz_to_midi(&[Sa])[0];
+    let midi_notes = hz_to_midi(frequencies);
+    let svara_names = if abbr {
+        vec!["S", "R1", "R2", "G1", "G2", "M1", "M2", "P", "D1", "D2", "N1", "N2"]
+    } else {
+        vec!["Shadjam", "Shuddha Rishabham", "Chatushruti Rishabham",
+             "Shuddha Gandharam", "Sadharana Gandharam", "Shuddha Madhyamam",
+             "Prati Madhyamam", "Panchamam", "Shuddha Dhaivatam", "Chatushruti Dhaivatam",
+             "Shuddha Nishadam", "Kaisiki Nishadam"]
+    };
+    midi_notes.iter().map(|&m| {
+        let degree = ((m - midi_Sa + 0.5).round() as i32 % 12 + 12) % 12;
+        svara_names[degree as usize].to_string()
+    }).collect()
+}
+
 pub fn hz_to_svara_c(_frequencies: &[f32], _Sa: f32, _mela: Option<usize>) -> Vec<String> { unimplemented!() }
 pub fn hz_to_fjs(_frequencies: &[f32], _fmin: Option<f32>, _unison: Option<f32>) -> Vec<String> { unimplemented!() }
 
