@@ -89,3 +89,45 @@ pub fn chroma_cens(
     }
     cens
 }
+
+pub fn melspectrogram(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    S: Option<&Array2<f32>>,
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+    n_mels: Option<usize>,
+    fmin: Option<f32>,
+    fmax: Option<f32>,
+) -> Array2<f32> {
+    let sr = sr.unwrap_or(44100);
+    let n_fft = n_fft.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(n_fft / 4);
+    let n_mels = n_mels.unwrap_or(128);
+    let fmin = fmin.unwrap_or(0.0);
+    let fmax = fmax.unwrap_or(sr as f32 / 2.0);
+    let S = match (y, S) {
+        (Some(y), None) => stft(y, Some(n_fft), Some(hop), None).unwrap().mapv(|x| x.norm().powi(2)),
+        (None, Some(S)) => S.to_owned(),
+        _ => panic!("Must provide either y or S"),
+    };
+    let mel_f = crate::frequencies::mel_frequencies(Some(n_mels), Some(fmin), Some(fmax), None);
+    let mut mel_S = Array2::zeros((n_mels, S.shape()[1]));
+    let fft_f = crate::frequencies::fft_frequencies(Some(sr), Some(n_fft));
+    for m in 0..n_mels {
+        let f_low = if m == 0 { fmin } else { mel_f[m - 1] };
+        let f_center = mel_f[m];
+        let f_high = mel_f.get(m + 1).copied().unwrap_or(fmax);
+        for (bin, &f) in fft_f.iter().enumerate() {
+            let weight = if f >= f_low && f <= f_high {
+                if f <= f_center { (f - f_low) / (f_center - f_low) } else { (f_high - f) / (f_high - f_center) }
+            } else {
+                0.0
+            };
+            for t in 0..S.shape()[1] {
+                mel_S[[m, t]] += S[[bin, t]] * weight.max(0.0);
+            }
+        }
+    }
+    mel_S
+}
