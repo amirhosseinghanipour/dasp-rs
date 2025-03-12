@@ -322,3 +322,48 @@ pub fn spectral_rolloff(
         freqs[freqs.len() - 1]
     }).collect()
 }
+
+pub fn poly_features(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    S: Option<&Array2<f32>>,
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+    order: Option<usize>,
+) -> Array2<f32> {
+    let n_fft = n_fft.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(n_fft / 4);
+    let order = order.unwrap_or(1);
+    let S = match (y, S) {
+        (Some(y), None) => stft(y, Some(n_fft), Some(hop), None).unwrap().mapv(|x| x.norm()),
+        (None, Some(S)) => S.to_owned(),
+        _ => panic!("Must provide either y or S"),
+    };
+    let mut coeffs = Array2::zeros((order + 1, S.shape()[1]));
+    let x = Array1::linspace(0.0, S.shape()[0] as f32 - 1.0, S.shape()[0]);
+    for t in 0..S.shape()[1] {
+        let y_t = S.slice(s![.., t]).to_owned();
+        let poly = polyfit(&x, &y_t, order);
+        for (i, &c) in poly.iter().enumerate() {
+            coeffs[[i, t]] = c;
+        }
+    }
+    coeffs
+}
+
+pub fn tonnetz(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    chroma: Option<&Array2<f32>>,
+) -> Array2<f32> {
+    let chroma = chroma.unwrap_or(&chroma_stft(y, sr, None, None, None, None, None));
+    let transform = Array2::from_shape_vec((6, 12), vec![
+        1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Fifths
+        0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Minor thirds
+        0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Major thirds
+        0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Minor sevenths
+        0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Major seconds
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Tritones
+    ]).unwrap();
+    transform.dot(chroma)
+}
