@@ -593,3 +593,39 @@ pub fn pitch_autocorr(
 
     pitch
 }
+
+pub fn vad_features(
+    y: &[f32],
+    sr: Option<u32>,
+    frame_length: Option<usize>,
+    hop_length: Option<usize>,
+    n_fft: Option<usize>,
+) -> Array2<f32> {
+    let sr = sr.unwrap_or(44100);
+    let frame_len = frame_length.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(frame_len / 4);
+    let n_fft = n_fft.unwrap_or(2048);
+    let n_frames = (y.len() - frame_len) / hop + 1;
+
+    let energy = crate::signal_processing::time_domain::log_energy(y, Some(frame_len), Some(hop));
+    
+    let zcr = crate::features::zero_crossing_rate(y, Some(frame_len), Some(hop));
+    
+    let S = stft(y, Some(n_fft), Some(hop), None)
+        .expect("STFT failed")
+        .mapv(|x| x.norm());
+    let flatness = S.axis_iter(Axis(1)).map(|frame| {
+        let geo_mean = frame.mapv(|x| x.max(1e-10).ln()).mean().unwrap().exp();
+        let arith_mean = frame.mean().unwrap();
+        if arith_mean > 1e-10 { geo_mean / arith_mean } else { 0.0 }
+    }).collect::<Array1<f32>>();
+
+    let mut features = Array2::zeros((3, n_frames));
+    for i in 0..n_frames {
+        features[[0, i]] = energy[i];
+        features[[1, i]] = zcr[i];
+        features[[2, i]] = flatness[i];
+    }
+
+    features
+}
