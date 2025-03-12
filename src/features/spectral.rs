@@ -48,9 +48,9 @@ pub fn chroma_cqt(
 ) -> Array2<f32> {
     let sr = sr.unwrap_or(44100);
     let hop = hop_length.unwrap_or(512);
-    let fmin = fmin.unwrap_or(32.70); // C1
+    let fmin = fmin.unwrap_or(32.70);
     let bpo = bins_per_octave.unwrap_or(12);
-    let n_bins = bpo * 3; // 3 octaves default
+    let n_bins = bpo * 3;
     let C = match (y, C) {
         (Some(y), None) => cqt(y, Some(sr), Some(hop), Some(fmin), Some(n_bins)),
         (None, Some(C)) => C.mapv(|x| num_complex::Complex::new(x, 0.0)),
@@ -400,4 +400,29 @@ fn polyfit(x: &Array1<f32>, y: &Array1<f32>, order: usize) -> Vec<f32> {
     }
     let coeffs = A.solve(&y.to_owned()).unwrap_or_else(|_| Array1::zeros(n));
     coeffs.to_vec()
+}
+
+pub fn spectral_flux(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    S: Option<&Array2<f32>>,
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+) -> Array1<f32> {
+    let sr = sr.unwrap_or(44100);
+    let n_fft = n_fft.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(n_fft / 4);
+    let S = match (y, S) {
+        (Some(y), None) => stft(y, Some(n_fft), Some(hop), None)
+            .expect("STFT failed")
+            .mapv(|x| x.norm()),
+        (None, Some(S)) => S.to_owned(),
+        _ => panic!("Must provide either y or S"),
+    };
+    let mut flux = Array1::zeros(S.shape()[1]);
+    for t in 1..S.shape()[1] {
+        let diff = &S.slice(s![.., t]) - &S.slice(s![.., t - 1]);
+        flux[t] = diff.mapv(|x| x.powi(2)).sum().sqrt();
+    }
+    flux
 }
