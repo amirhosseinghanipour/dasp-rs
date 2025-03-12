@@ -426,3 +426,31 @@ pub fn spectral_flux(
     }
     flux
 }
+
+pub fn spectral_entropy(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    S: Option<&Array2<f32>>,
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+) -> Array1<f32> {
+    let sr = sr.unwrap_or(44100);
+    let n_fft = n_fft.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(n_fft / 4);
+    let S = match (y, S) {
+        (Some(y), None) => stft(y, Some(n_fft), Some(hop), None)
+            .expect("STFT failed")
+            .mapv(|x| x.norm()),
+        (None, Some(S)) => S.to_owned(),
+        _ => panic!("Must provide either y or S"),
+    };
+    S.axis_iter(Axis(1)).map(|frame| {
+        let sum = frame.sum();
+        if sum <= 1e-10 {
+            0.0
+        } else {
+            let p = frame.mapv(|x| x / sum);
+            -p.mapv(|x| if x > 1e-10 { x * x.ln() } else { 0.0 }).sum()
+        }
+    }).collect()
+}
