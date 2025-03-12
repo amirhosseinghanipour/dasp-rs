@@ -53,7 +53,25 @@ pub fn mela_to_svara(mela: usize, abbr: Option<bool>, unicode: Option<bool>) -> 
     result
 }
 
-pub fn mela_to_degrees(_mela: usize) -> Vec<usize> { unimplemented!() }
+pub fn mela_to_degrees(mela: usize) -> Vec<usize> {
+    if mela < 1 || mela > 72 { return vec![0, 2, 4, 5, 7, 9, 11]; }
+    let mela = mela - 1;
+    let r = (mela / 36) % 2;
+    let g = (mela / 18) % 2;
+    let m = (mela / 9) % 2;
+    let d = (mela / 3) % 3;
+    let n = mela % 3;
+    vec![
+        0,
+        if r == 0 { 1 } else { 2 + g },
+        if r == 0 { 2 + g } else { 4 },
+        5 + m,
+        7,
+        8 + d,
+        10 + n,
+    ]
+}
+
 pub fn thaat_to_degrees(_thaat: &str) -> Vec<usize> { unimplemented!() }
 pub fn list_mela() -> Vec<(usize, String)> { unimplemented!() }
 pub fn list_thaat() -> Vec<String> { unimplemented!() }
