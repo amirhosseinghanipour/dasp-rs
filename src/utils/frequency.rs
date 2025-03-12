@@ -127,9 +127,6 @@ pub fn note_to_midi(note: &[&str], round_midi: Option<bool>) -> Vec<f32> {
     }).collect()
 }
 
-pub fn note_to_svara_h(_notes: &[&str], _Sa: f32, _abbr: Option<bool>) -> Vec<String> { unimplemented!() }
-pub fn note_to_svara_c(_notes: &[&str], _Sa: f32, _mela: Option<usize>, _abbr: Option<bool>) -> Vec<String> { unimplemented!() }
-
 pub fn hz_to_mel(frequencies: &[f32], htk: Option<bool>) -> Vec<f32> {
     if htk.unwrap_or(false) {
         frequencies.iter().map(|&f| 2595.0 * (1.0 + f / 700.0).log10()).collect()
@@ -181,5 +178,10 @@ pub fn mel_frequencies(n_mels: Option<usize>, fmin: Option<f32>, fmax: Option<f3
     mel_to_hz(&mel_steps.to_vec(), None)
 }
 
-pub fn tempo_frequencies(_n_bins: usize, _hop_length: Option<usize>, _sr: Option<u32>) -> Vec<f32> { unimplemented!() }
-pub fn fourier_tempo_frequencies(_sr: Option<u32>) -> Vec<f32> { unimplemented!() }
+pub fn fourier_tempo_frequencies(sr: Option<u32>) -> Vec<f32> {
+    let sr = sr.unwrap_or(44100);
+    let hop_length = 512;
+    let n_bins = 256;
+    let frame_rate = sr as f32 / hop_length as f32;
+    Array1::linspace(0.0, frame_rate / 2.0, n_bins).mapv(|f| f * 60.0).to_vec() // BPM
+}
