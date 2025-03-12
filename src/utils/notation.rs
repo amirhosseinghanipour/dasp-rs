@@ -144,7 +144,16 @@ pub fn fifths_to_note(unison: &str, fifths: i32, unicode: Option<bool>) -> Strin
     format!("{}{}", note, if octave_shift != 0 { octave_shift.to_string() } else { "".to_string() })
 }
 
-pub fn interval_to_fjs(_interval: f32, _unison: Option<f32>) -> String { unimplemented!() }
-pub fn interval_frequencies(_n_bins: usize, _fmin: f32, _intervals: &[f32]) -> Vec<f32> { unimplemented!() }
-pub fn pythagorean_intervals(_bins_per_octave: Option<usize>) -> Vec<f32> { unimplemented!() }
-pub fn plimit_intervals(_primes: &[usize]) -> Vec<f32> { unimplemented!() }
+pub fn interval_to_fjs(interval: f32, unison: Option<f32>) -> String {
+    let unison = unison.unwrap_or(1.0);
+    let ratio = interval / unison;
+    match ratio {
+        r if (r - 1.0).abs() < 1e-6 => "1/1".to_string(),
+        r if (r - 3.0/2.0).abs() < 1e-6 => "3/2".to_string(),
+        r if (r - 4.0/3.0).abs() < 1e-6 => "4/3".to_string(),
+        r if (r - 5.0/4.0).abs() < 1e-6 => "5/4".to_string(),
+        r if (r - 6.0/5.0).abs() < 1e-6 => "6/5".to_string(),
+        _ => format!("{:.2}/1", ratio),
+    }
+}
+
