@@ -1,4 +1,4 @@
-use aurust::{get_duration, frames_to_samples, hz_to_midi, midi_to_hz, note_to_midi, hz_to_mel, mel_to_hz};
+use aurust::{get_duration, frames_to_samples, hz_to_midi, midi_to_hz, note_to_midi, hz_to_mel};
 use approx::assert_abs_diff_eq;
 
 #[test]

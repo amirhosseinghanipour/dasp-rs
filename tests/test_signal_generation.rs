@@ -3,7 +3,7 @@ use aurust::{clicks, tone, chirp};
 #[test]
 fn test_clicks() {
     let signal = clicks(Some(&[0.1, 0.2]), None, None, None);
-    assert!(signal.len() > 0);
+    assert!(!signal.is_empty());
     assert_eq!(signal[(0.1 * 44100.0) as usize], 1.0);
 }
 

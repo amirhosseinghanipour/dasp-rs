@@ -15,8 +15,8 @@ pub fn delta(
         let half_width = width / 2;
         let weights: Vec<f32> = (1..=half_width).map(|i| i as f32).collect();
         let norm = weights.iter().map(|x| x.powi(2)).sum::<f32>();
-        for i in 0..result.shape()[axis.abs() as usize] {
-            let slice = result.index_axis(Axis(axis.abs() as usize), i);
+        for i in 0..result.shape()[axis.unsigned_abs()] {
+            let slice = result.index_axis(Axis(axis.unsigned_abs()), i);
             for j in 0..slice.len() {
                 let mut sum = 0.0;
                 for w in 0..weights.len() {

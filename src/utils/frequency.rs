@@ -119,7 +119,7 @@ pub fn note_to_hz(note: &[&str]) -> Vec<f32> {
 pub fn note_to_midi(note: &[&str], round_midi: Option<bool>) -> Vec<f32> {
     let note_map = [("C", 0), ("C#", 1), ("Db", 1), ("D", 2), ("D#", 3), ("Eb", 3), ("E", 4), ("F", 5), ("F#", 6), ("Gb", 6), ("G", 7), ("G#", 8), ("Ab", 8), ("A", 9), ("A#", 10), ("Bb", 10), ("B", 11)];
     note.iter().map(|&n| {
-        let (note_part, octave_part) = n.split_at(n.find(|c: char| c.is_digit(10)).unwrap_or(n.len()));
+        let (note_part, octave_part) = n.split_at(n.find(|c: char| c.is_ascii_digit()).unwrap_or(n.len()));
         let note_val = note_map.iter().find(|&&(name, _)| name == note_part).map(|&(_, val)| val).unwrap_or(0) as f32;
         let octave = octave_part.parse::<i32>().unwrap_or(4);
         let midi = note_val + (octave + 1) as f32 * 12.0;

@@ -30,12 +30,12 @@ pub fn mela_to_svara(mela: usize, abbr: Option<bool>, unicode: Option<bool>) -> 
     } else {
         vec!["shadjam", "rishabham", "gandharam", "madhyamam", "panchamam", "dhaivatam", "nishadam"]
     };
-    let svara_abbr = vec!["S", "R", "G", "M", "P", "D", "N"];
+    let svara_abbr = ["S", "R", "G", "M", "P", "D", "N"];
     let mut result = Vec::new();
     for (i, &deg) in degrees.iter().enumerate() {
         let base = match i {
             0 => "S", 1..=3 => "R", 4..=6 => "G", 7 => "M", 8 => "P", 9..=11 => "D", 12..=14 => "N",
-            _ => "S", // Shouldn’t happen with valid mela
+            _ => "S",
         };
         let variant = match deg % 12 {
             1 => "1", 2 => "2", 3 => "3", 5 => "1", 6 => "2", 7 => "3", 8 => "1", 9 => "2", 10 => "3", _ => "",
@@ -54,7 +54,7 @@ pub fn mela_to_svara(mela: usize, abbr: Option<bool>, unicode: Option<bool>) -> 
 }
 
 pub fn mela_to_degrees(mela: usize) -> Vec<usize> {
-    if mela < 1 || mela > 72 { return vec![0, 2, 4, 5, 7, 9, 11]; }
+    if !(1..=72).contains(&mela) { return vec![0, 2, 4, 5, 7, 9, 11]; }
     let mela = mela - 1;
     let r = (mela / 36) % 2;
     let g = (mela / 18) % 2;
@@ -204,6 +204,6 @@ pub fn plimit_intervals(primes: &[usize]) -> Vec<f32> {
     }
     intervals.sort_by(|a, b| a.partial_cmp(b).unwrap());
     intervals.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
-    intervals.retain(|&x| x >= 1.0 && x <= 2.0);
+    intervals.retain(|&x| (1.0..=2.0).contains(&x));
     intervals
 }

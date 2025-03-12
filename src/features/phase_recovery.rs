@@ -14,7 +14,7 @@ pub fn griffinlim(S: &Array2<f32>, n_iter: Option<usize>, hop_length: Option<usi
             *m = S[[i, j]].sqrt();
             let p = &mut phase[[i, j]];
             if m.abs() > 1e-10 {
-                *p = *p / p.norm();
+                *p /= p.norm();
             }
         }
         let mag_complex = mag.mapv(|x| Complex::new(x, 0.0));
