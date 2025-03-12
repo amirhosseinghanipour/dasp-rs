@@ -1,4 +1,4 @@
-use ndarray::{Array1, Array2};
+use ndarray::{Array1, Array2, Axis};
 use crate::signal_processing::spectral::stft;
 
 pub fn tempo(
@@ -9,14 +9,25 @@ pub fn tempo(
 ) -> f32 {
     let sr = sr.unwrap_or(44100);
     let hop = hop_length.unwrap_or(512);
-    let onset = onset_envelope.unwrap_or_else(|| {
-        let S = stft(y.unwrap(), None, Some(hop), None).unwrap().mapv(|x| x.norm());
-        S.map_axis(Axis(0), |row| row.iter().map(|&x| x.max(0.0)).sum::<f32>()).into_owned()
-    });
-    let tempogram = tempogram(None, Some(sr), Some(&onset), hop_length, None);
+    let onset_owned = if onset_envelope.is_none() {
+        let S = stft(
+            y.expect("Audio signal required when onset_envelope is None"),
+            None,
+            Some(hop),
+            None,
+        )
+        .expect("STFT computation failed")
+        .mapv(|x| x.norm());
+        S.map_axis(Axis(0), |row| row.iter().map(|&x| x.max(0.0)).sum::<f32>())
+    } else {
+        onset_envelope.unwrap().to_owned()
+    };
+    let onset = &onset_owned;
+    let tempogram = tempogram(None, Some(sr), Some(onset), hop_length, None);
     tempogram.axis_iter(Axis(1)).map(|col| {
-        let max_idx = col.iter().position_max().unwrap_or(0);
-        crate::frequencies::tempo_frequencies(tempogram.shape()[0], Some(hop), Some(sr))[max_idx]
+        let max_val = col.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(&0.0);
+        let max_idx = col.iter().position(|&x| x == *max_val).unwrap_or(0);
+        crate::tempo_frequencies(tempogram.shape()[0], Some(hop), Some(sr))[max_idx]
     }).sum::<f32>() / tempogram.shape()[1] as f32
 }
 
@@ -30,10 +41,20 @@ pub fn tempogram(
     let sr = sr.unwrap_or(44100);
     let hop = hop_length.unwrap_or(512);
     let win = win_length.unwrap_or(384);
-    let onset = onset_envelope.unwrap_or_else(|| {
-        let S = stft(y.unwrap(), None, Some(hop), None).unwrap().mapv(|x| x.norm());
-        S.map_axis(Axis(0), |row| row.iter().map(|&x| x.max(0.0)).sum::<f32>()).into_owned()
-    });
+    let onset_owned = if onset_envelope.is_none() {
+        let S = stft(
+            y.expect("Audio signal required when onset_envelope is None"),
+            None, 
+            Some(hop),
+            None,
+        )
+        .expect("STFT computation failed")
+        .mapv(|x| x.norm());
+        S.map_axis(Axis(0), |row| row.iter().map(|&x| x.max(0.0)).sum::<f32>())
+    } else {
+        onset_envelope.unwrap().to_owned()
+    };
+    let onset = &onset_owned;
     let mut tempogram = Array2::zeros((win / 2 + 1, onset.len()));
     for t in 0..onset.len() {
         for lag in 0..(win / 2 + 1) {
