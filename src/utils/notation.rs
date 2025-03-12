@@ -72,7 +72,22 @@ pub fn mela_to_degrees(mela: usize) -> Vec<usize> {
     ]
 }
 
-pub fn thaat_to_degrees(_thaat: &str) -> Vec<usize> { unimplemented!() }
+pub fn thaat_to_degrees(thaat: &str) -> Vec<usize> {
+    match thaat.to_lowercase().as_str() {
+        "bilaval" => vec![0, 2, 4, 5, 7, 9, 11],
+        "kalyani" => vec![0, 2, 4, 6, 7, 9, 11],
+        "khamaj" => vec![0, 2, 4, 5, 7, 9, 10],
+        "bhairav" => vec![0, 1, 4, 5, 6, 9, 11],
+        "purvi" => vec![0, 1, 4, 6, 7, 9, 11],
+        "marwa" => vec![0, 1, 3, 6, 7, 9, 11],
+        "kafi" => vec![0, 2, 3, 5, 7, 9, 10],
+        "asavari" => vec![0, 2, 3, 5, 7, 8, 10],
+        "todi" => vec![0, 1, 3, 6, 7, 8, 11],
+        "bhoopali" => vec![0, 2, 4, 7, 9],
+        _ => vec![0, 2, 4, 5, 7, 9, 11],
+    }
+}
+
 pub fn list_mela() -> Vec<(usize, String)> { unimplemented!() }
 pub fn list_thaat() -> Vec<String> { unimplemented!() }
 pub fn fifths_to_note(_unison: &str, _fifths: i32, _unicode: Option<bool>) -> String { unimplemented!() }
