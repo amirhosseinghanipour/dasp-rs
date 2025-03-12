@@ -205,3 +205,30 @@ pub fn spectral_centroid(
         if total > 1e-6 { frame.dot(&Array1::from_vec(freqs.clone())) / total } else { 0.0 }
     }).collect()
 }
+
+pub fn spectral_bandwidth(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    S: Option<&Array2<f32>>,
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+    p: Option<i32>,
+) -> Array1<f32> {
+    let p = p.unwrap_or(2);
+    let centroid = spectral_centroid(y, sr, S, n_fft, hop_length);
+    let S = match (y, S) {
+        (Some(y), None) => stft(y, Some(n_fft), Some(hop_length.unwrap_or(n_fft.unwrap_or(2048) / 4)), None).unwrap().mapv(|x| x.norm()),
+        (None, Some(S)) => S.to_owned(),
+        _ => panic!("Must provide either y or S"),
+    };
+    let freqs = crate::frequencies::fft_frequencies(sr, n_fft);
+    S.axis_iter(Axis(1)).zip(centroid.iter()).map(|(frame, &c)| {
+        let total = frame.sum();
+        if total > 1e-6 {
+            let dev = frame.iter().zip(freqs.iter()).map(|(&s, &f)| s * (f - c).powi(p)).sum::<f32>() / total;
+            dev.powf(1.0 / p as f32)
+        } else {
+            0.0
+        }
+    }).collect()
+}
