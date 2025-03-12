@@ -178,10 +178,17 @@ pub fn mel_frequencies(n_mels: Option<usize>, fmin: Option<f32>, fmax: Option<f3
     mel_to_hz(&mel_steps.to_vec(), None)
 }
 
+pub fn tempo_frequencies(n_bins: usize, hop_length: Option<usize>, sr: Option<u32>) -> Vec<f32> {
+    let sr = sr.unwrap_or(44100);
+    let hop = hop_length.unwrap_or(512);
+    let frame_rate = sr as f32 / hop as f32;
+    Array1::linspace(0.0, frame_rate / 2.0, n_bins).mapv(|f| f * 60.0).to_vec()
+}
+
 pub fn fourier_tempo_frequencies(sr: Option<u32>) -> Vec<f32> {
     let sr = sr.unwrap_or(44100);
     let hop_length = 512;
     let n_bins = 256;
     let frame_rate = sr as f32 / hop_length as f32;
-    Array1::linspace(0.0, frame_rate / 2.0, n_bins).mapv(|f| f * 60.0).to_vec() // BPM
+    Array1::linspace(0.0, frame_rate / 2.0, n_bins).mapv(|f| f * 60.0).to_vec()
 }
