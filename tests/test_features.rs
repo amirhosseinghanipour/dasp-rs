@@ -1,4 +1,4 @@
-use aurust::{griffinlim, phase_vocoder};
+use aurust::{griffinlim, phase_vocoder, interp_harmonics};
 use ndarray::arr2;
 use num_complex::Complex;
 
@@ -17,4 +17,15 @@ fn test_phase_vocoder() {
     let D = arr2(&[[Complex::new(1.0, 0.0)], [Complex::new(0.5, 0.0)]]);
     let vocoded = phase_vocoder(&D, 2.0, None, None);
     assert!(vocoded.shape()[1] < D.shape()[1]);
+}
+
+#[test]
+fn test_interp_harmonics() {
+    let x = vec![1.0, 2.0, 3.0];
+    let freqs = vec![100.0, 200.0, 300.0];
+    let harmonics = vec![1.0, 2.0];
+    let result = interp_harmonics(&x, &freqs, &harmonics);
+    assert_eq!(result.shape(), &[2, 3]);
+    assert_eq!(result[[0, 0]], 1.0);
+    assert_eq!(result[[1, 0]], 2.0);
 }
