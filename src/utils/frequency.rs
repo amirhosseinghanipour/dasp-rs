@@ -167,7 +167,12 @@ pub fn fft_frequencies(sr: Option<u32>, n_fft: Option<usize>) -> Vec<f32> {
     Array1::linspace(0.0, sample_rate as f32 / 2.0, n / 2 + 1).to_vec()
 }
 
-pub fn cqt_frequencies(_n_bins: usize, _fmin: Option<f32>) -> Vec<f32> { unimplemented!() }
+pub fn cqt_frequencies(n_bins: usize, fmin: Option<f32>) -> Vec<f32> {
+    let fmin = fmin.unwrap_or(32.70); // C1
+    let bins_per_octave = 12;
+    (0..n_bins).map(|k| fmin * 2.0f32.powf(k as f32 / bins_per_octave as f32)).collect()
+}
+
 pub fn mel_frequencies(n_mels: Option<usize>, fmin: Option<f32>, fmax: Option<f32>, _htk: Option<bool>) -> Vec<f32> {
     let n = n_mels.unwrap_or(128);
     let min_freq = fmin.unwrap_or(0.0);
