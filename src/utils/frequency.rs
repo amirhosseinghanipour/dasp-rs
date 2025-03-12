@@ -127,6 +127,16 @@ pub fn note_to_midi(note: &[&str], round_midi: Option<bool>) -> Vec<f32> {
     }).collect()
 }
 
+pub fn note_to_svara_h(notes: &[&str], Sa: f32, abbr: Option<bool>) -> Vec<String> {
+    let midi = note_to_midi(notes, Some(true));
+    hz_to_svara_h(&midi_to_hz(&midi), Sa, abbr)
+}
+
+pub fn note_to_svara_c(notes: &[&str], Sa: f32, mela: Option<usize>, abbr: Option<bool>) -> Vec<String> {
+    let midi = note_to_midi(notes, Some(true));
+    hz_to_svara_c(&midi_to_hz(&midi), Sa, mela)
+}
+
 pub fn hz_to_mel(frequencies: &[f32], htk: Option<bool>) -> Vec<f32> {
     if htk.unwrap_or(false) {
         frequencies.iter().map(|&f| 2595.0 * (1.0 + f / 700.0).log10()).collect()
@@ -168,7 +178,7 @@ pub fn fft_frequencies(sr: Option<u32>, n_fft: Option<usize>) -> Vec<f32> {
 }
 
 pub fn cqt_frequencies(n_bins: usize, fmin: Option<f32>) -> Vec<f32> {
-    let fmin = fmin.unwrap_or(32.70); // C1
+    let fmin = fmin.unwrap_or(32.70);
     let bins_per_octave = 12;
     (0..n_bins).map(|k| fmin * 2.0f32.powf(k as f32 / bins_per_octave as f32)).collect()
 }
