@@ -269,3 +269,24 @@ pub fn spectral_contrast(
     }
     contrast
 }
+
+pub fn spectral_flatness(
+    y: Option<&[f32]>,
+    S: Option<&Array2<f32>>,
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+) -> Array1<f32> {
+    let n_fft = n_fft.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(n_fft / 4);
+    let S = match (y, S) {
+        (Some(y), None) => stft(y, Some(n_fft), Some(hop), None).unwrap().mapv(|x| x.norm().max(1e-10)),
+        (None, Some(S)) => S.to_owned(),
+        _ => panic!("Must provide either y or S"),
+    };
+    S.axis_iter(Axis(1)).map(|frame| {
+        let log_frame = frame.mapv(f32::ln);
+        let geo_mean = log_frame.sum() / frame.len() as f32;
+        let arith_mean = frame.sum() / frame.len() as f32;
+        f32::exp(geo_mean) / arith_mean
+    }).collect()
+}
