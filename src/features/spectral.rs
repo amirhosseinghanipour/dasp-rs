@@ -183,3 +183,25 @@ pub fn rms(
         _ => panic!("Must provide either y or S"),
     }
 }
+
+pub fn spectral_centroid(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    S: Option<&Array2<f32>>,
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+) -> Array1<f32> {
+    let sr = sr.unwrap_or(44100);
+    let n_fft = n_fft.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(n_fft / 4);
+    let S = match (y, S) {
+        (Some(y), None) => stft(y, Some(n_fft), Some(hop), None).unwrap().mapv(|x| x.norm()),
+        (None, Some(S)) => S.to_owned(),
+        _ => panic!("Must provide either y or S"),
+    };
+    let freqs = crate::frequencies::fft_frequencies(Some(sr), Some(n_fft));
+    S.axis_iter(Axis(1)).map(|frame| {
+        let total = frame.sum();
+        if total > 1e-6 { frame.dot(&Array1::from_vec(freqs.clone())) / total } else { 0.0 }
+    }).collect()
+}
