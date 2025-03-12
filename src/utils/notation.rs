@@ -183,3 +183,27 @@ pub fn pythagorean_intervals(bins_per_octave: Option<usize>) -> Vec<f32> {
     intervals.sort_by(|a, b| a.partial_cmp(b).unwrap());
     intervals
 }
+
+pub fn plimit_intervals(primes: &[usize]) -> Vec<f32> {
+    let mut intervals = vec![1.0];
+    for &p in primes {
+        let mut new_intervals = Vec::new();
+        for &i in &intervals {
+            let mut n = i;
+            while n < 2.0 {
+                new_intervals.push(n);
+                n *= p as f32;
+            }
+            let mut d = i;
+            while d > 0.5 {
+                new_intervals.push(d);
+                d /= p as f32;
+            }
+        }
+        intervals.extend(new_intervals);
+    }
+    intervals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    intervals.dedup_by(|a, b| (a - b).abs() < 1e-6);
+    intervals.retain(|&x| x >= 1.0 && x <= 2.0);
+    intervals
+}
