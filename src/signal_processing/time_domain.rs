@@ -17,7 +17,7 @@ pub fn lpc(y: &[f32], order: usize) -> Result<Vec<f32>, AudioError> {
     if y.len() <= order {
         return Err(AudioError::InvalidRange);
     }
-    let mut r = autocorrelate(y, Some(order + 1), None);
+    let r = autocorrelate(y, Some(order + 1), None);
     let mut a = vec![0.0; order + 1];
     a[0] = 1.0;
     let mut e = r[0];

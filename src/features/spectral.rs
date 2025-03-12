@@ -1,6 +1,6 @@
 use ndarray::{Array1, Array2, s, Axis};
 use crate::signal_processing::spectral::{stft, cqt};
-use crate::{hz_to_midi, midi_to_note};
+use crate::hz_to_midi;
 use ndarray_linalg::Solve;
 
 pub fn chroma_stft(
@@ -61,7 +61,7 @@ pub fn chroma_cqt(
         for bin in 0..C.shape()[0] {
             let freq = fmin * 2.0f32.powf(bin as f32 / bpo as f32);
             let midi = hz_to_midi(&[freq])[0];
-            let pitch_class = (midi.round() as usize % 12);
+            let pitch_class = midi.round() as usize % 12;
             chroma[[pitch_class, frame]] += C[[bin, frame]].norm();
         }
     }
@@ -77,7 +77,7 @@ pub fn chroma_cens(
     bins_per_octave: Option<usize>,
     win_length: Option<usize>,
 ) -> Array2<f32> {
-    let mut chroma = chroma_cqt(y, sr, C, hop_length, fmin, bins_per_octave);
+    let chroma = chroma_cqt(y, sr, C, hop_length, fmin, bins_per_octave);
     let win = win_length.unwrap_or(41);
     let half_win = win / 2;
     let mut cens = Array2::zeros(chroma.dim());

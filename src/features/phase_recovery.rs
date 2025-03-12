@@ -1,4 +1,4 @@
-use ndarray::{Array2, Array1};
+use ndarray::Array2;
 use num_complex::Complex;
 
 pub fn griffinlim(S: &Array2<f32>, n_iter: Option<usize>, hop_length: Option<usize>) -> Vec<f32> {
