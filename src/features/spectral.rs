@@ -385,3 +385,15 @@ pub fn zero_crossing_rate(
     }
     zcr
 }
+
+fn polyfit(x: &Array1<f32>, y: &Array1<f32>, order: usize) -> Vec<f32> {
+    let n = order + 1;
+    let mut A = Array2::zeros((x.len(), n));
+    for i in 0..x.len() {
+        for j in 0..n {
+            A[[i, j]] = x[i].powi(j as i32);
+        }
+    }
+    let coeffs = A.solve_into(y.to_owned()).unwrap_or_else(|_| Array1::zeros(n));
+    coeffs.to_vec()
+}
