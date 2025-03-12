@@ -372,24 +372,6 @@ pub fn tonnetz(
     transform.dot(chroma)
 }
 
-pub fn zero_crossing_rate(
-    y: &[f32],
-    frame_length: Option<usize>,
-    hop_length: Option<usize>,
-) -> Array1<f32> {
-    let frame_len = frame_length.unwrap_or(2048);
-    let hop = hop_length.unwrap_or(frame_len / 4);
-    let n_frames = (y.len() - frame_len) / hop + 1;
-    let mut zcr = Array1::zeros(n_frames);
-    for i in 0..n_frames {
-        let start = i * hop;
-        let slice = &y[start..(start + frame_len).min(y.len())];
-        let count = slice.windows(2).filter(|w| w[0] * w[1] < 0.0).count();
-        zcr[i] = count as f32 / frame_len as f32;
-    }
-    zcr
-}
-
 fn polyfit(x: &Array1<f32>, y: &Array1<f32>, order: usize) -> Vec<f32> {
     let n = order + 1;
     let mut A = Array2::zeros((x.len(), n));
@@ -491,37 +473,5 @@ pub fn pitch_chroma(
         }
     }
     chroma
-}
-
-pub fn temporal_kurtosis(
-    y: Option<&[f32]>,
-    S: Option<&Array2<f32>>,
-    frame_length: Option<usize>,
-    hop_length: Option<usize>,
-) -> Array1<f32> {
-    let frame_len = frame_length.unwrap_or(2048);
-    let hop = hop_length.unwrap_or(frame_len / 4);
-    match (y, S) {
-        (Some(y), None) => {
-            let n_frames = (y.len() - frame_len) / hop + 1;
-            let mut kurtosis = Array1::zeros(n_frames);
-            for i in 0..n_frames {
-                let start = i * hop;
-                let frame = &y[start..(start + frame_len).min(y.len())];
-                let mean = frame.iter().sum::<f32>() / frame.len() as f32;
-                let m2 = frame.iter().map(|&x| (x - mean).powi(2)).sum::<f32>() / frame.len() as f32;
-                let m4 = frame.iter().map(|&x| (x - mean).powi(4)).sum::<f32>() / frame.len() as f32;
-                kurtosis[i] = if m2 > 1e-10 { m4 / m2.powi(2) - 3.0 } else { 0.0 };
-            }
-            kurtosis
-        }
-        (None, Some(S)) => S.axis_iter(Axis(1)).map(|frame| {
-            let mean = frame.mean().unwrap_or(0.0);
-            let m2 = frame.mapv(|x| (x - mean).powi(2)).mean().unwrap_or(0.0);
-            let m4 = frame.mapv(|x| (x - mean).powi(4)).mean().unwrap_or(0.0);
-            if m2 > 1e-10 { m4 / m2.powi(2) - 3.0 } else { 0.0 }
-        }).collect(),
-        _ => panic!("Must provide either y or S"),
-    }
 }
 
