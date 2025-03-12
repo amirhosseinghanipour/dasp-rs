@@ -290,3 +290,35 @@ pub fn spectral_flatness(
         f32::exp(geo_mean) / arith_mean
     }).collect()
 }
+
+pub fn spectral_rolloff(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    S: Option<&Array2<f32>>,
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+    roll_percent: Option<f32>,
+) -> Array1<f32> {
+    let sr = sr.unwrap_or(44100);
+    let n_fft = n_fft.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(n_fft / 4);
+    let roll_percent = roll_percent.unwrap_or(0.85);
+    let S = match (y, S) {
+        (Some(y), None) => stft(y, Some(n_fft), Some(hop), None).unwrap().mapv(|x| x.norm()),
+        (None, Some(S)) => S.to_owned(),
+        _ => panic!("Must provide either y or S"),
+    };
+    let freqs = crate::frequencies::fft_frequencies(Some(sr), Some(n_fft));
+    S.axis_iter(Axis(1)).map(|frame| {
+        let total_energy = frame.sum();
+        let target_energy = total_energy * roll_percent;
+        let mut cum_energy = 0.0;
+        for (f, &s) in freqs.iter().zip(frame.iter()) {
+            cum_energy += s;
+            if cum_energy >= target_energy {
+                return *f;
+            }
+        }
+        freqs[freqs.len() - 1]
+    }).collect()
+}
