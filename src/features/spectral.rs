@@ -1,7 +1,8 @@
-use ndarray::{Array1, Array2, s, Axis};
+use ndarray::{Array1, Array2, s, Axis, Array, arr2};
 use crate::signal_processing::spectral::{stft, cqt};
 use crate::hz_to_midi;
-use ndarray_linalg::Solve;
+use ndarray_linalg::{Solve, Eig};
+use num_complex::Complex;
 
 pub fn chroma_stft(
     y: Option<&[f32]>,
@@ -677,4 +678,100 @@ pub fn spectral_subband_centroids(
     }
 
     centroids
+}
+
+pub fn formant_frequencies(
+    y: &[f32],
+    sr: Option<u32>,
+    n_formants: Option<usize>,
+    frame_length: Option<usize>,
+    hop_length: Option<usize>,
+) -> Result<Array2<f32>, String> {
+    let sr = sr.unwrap_or(44100);
+    let n_formants = n_formants.unwrap_or(3);
+    let frame_len = frame_length.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(frame_len / 4);
+    let order = (2.0 * sr as f32 / 1000.0).round() as usize + 2;
+    let n_frames = (y.len() - frame_len) / hop + 1;
+
+    if y.len() < frame_len {
+        return Err("Signal length is shorter than frame length".to_string());
+    }
+
+    let mut formants = Array2::zeros((n_formants, n_frames));
+
+    for i in 0..n_frames {
+        let start = i * hop;
+        let frame = &y[start..(start + frame_len).min(y.len())];
+        let lpc_coeffs = lpc(frame, order)?;
+        let roots = polynomial_roots(&lpc_coeffs)?;
+        let mut freqs: Vec<f32> = roots.iter()
+            .filter_map(|r| {
+                if r.im.abs() > 1e-6 {
+                    let freq = r.arg().abs() * sr as f32 / (2.0 * std::f32::consts::PI);
+                    if freq > 50.0 && freq < sr as f32 / 2.0 { Some(freq) } else { None }
+                } else { None }
+            })
+            .collect();
+        freqs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        for (j, &f) in freqs.iter().take(n_formants).enumerate() {
+            formants[[j, i]] = f;
+        }
+    }
+
+    Ok(formants)
+}
+
+fn lpc(frame: &[f32], order: usize) -> Result<Vec<f32>, String> {
+    if frame.len() < order {
+        return Err("Frame length must be at least LPC order".to_string());
+    }
+    let autocorr = crate::signal_processing::time_domain::autocorrelate(frame, Some(order + 1), None);
+    if autocorr[0] <= 1e-10 {
+        return Err("Frame energy too low for LPC".to_string());
+    }
+
+    let mut a = vec![1.0; order + 1];
+    let mut e = autocorr[0];
+    let mut tmp = vec![0.0; order + 1];
+
+    for i in 1..=order {
+        let mut lambda = 0.0;
+        for j in 0..i {
+            lambda -= a[j] * autocorr[i - j];
+        }
+        lambda /= e;
+        for j in 0..i {
+            tmp[j] = a[j] + lambda * a[i - 1 - j];
+        }
+        a[..i].copy_from_slice(&tmp[..i]);
+        a[i] = lambda;
+        e *= 1.0 - lambda * lambda;
+        if e <= 1e-10 {
+            return Err("LPC instability detected".to_string());
+        }
+    }
+    Ok(a)
+}
+
+fn polynomial_roots(coeffs: &[f32]) -> Result<Vec<Complex<f32>>, String> {
+    if coeffs.len() <= 1 {
+        return Ok(vec![]);
+    }
+
+    let n = coeffs.len() - 1;
+    let mut companion = Array2::zeros((n, n));
+    for i in 0..n - 1 {
+        companion[[i + 1, i]] = 1.0;
+    }
+    let a_n = coeffs[n];
+    if a_n.abs() < 1e-10 {
+        return Err("Leading coefficient too small".to_string());
+    }
+    for i in 0..n {
+        companion[[i, n - 1]] = -coeffs[n - 1 - i] / a_n;
+    }
+
+    let eigenvalues = companion.eig().map_err(|e| format!("Eigenvalue computation failed: {}", e))?;
+    Ok(eigenvalues.0.to_vec())
 }
