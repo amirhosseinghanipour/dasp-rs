@@ -59,7 +59,32 @@ pub fn salience(S: &Array2<f32>, freqs: &[f32], harmonics: &[f32], weights: Opti
     salience_map
 }
 
-pub fn f0_harmonics(_x: &[f32], _f0: &[f32], _freqs: &[f32], _harmonics: &[f32]) -> Array2<f32> { unimplemented!() }
+pub fn f0_harmonics(x: &[f32], f0: &[f32], freqs: &[f32], harmonics: &[f32]) -> Array2<f32> {
+    assert_eq!(x.len(), freqs.len(), "x and freqs must have the same length");
+    let n_frames = f0.len();
+    let n_harmonics = harmonics.len();
+    let mut result = Array2::zeros((n_harmonics, n_frames));
+
+    for (frame, &fund) in f0.iter().enumerate() {
+        for (h_idx, &h) in harmonics.iter().enumerate() {
+            let target_freq = fund * h;
+            if target_freq < freqs[freqs.len() - 1] {
+                let left_idx = freqs.iter().position(|&x| x >= target_freq).unwrap_or(freqs.len() - 1);
+                let left_idx = left_idx.saturating_sub(1);
+                let right_idx = (left_idx + 1).min(freqs.len() - 1);
+                let left_freq = freqs[left_idx];
+                let right_freq = freqs[right_idx];
+                if left_freq == right_freq {
+                    result[[h_idx, frame]] = x[left_idx];
+                } else {
+                    let alpha = (target_freq - left_freq) / (right_freq - left_freq);
+                    result[[h_idx, frame]] = x[left_idx] * (1.0 - alpha) + x[right_idx] * alpha;
+                }
+            }
+        }
+    }
+    result
+}
 
 pub fn phase_vocoder(D: &Array2<Complex<f32>>, rate: f32, hop_length: Option<usize>, n_fft: Option<usize>) -> Array2<Complex<f32>> {
     let n = n_fft.unwrap_or((D.shape()[0] - 1) * 2);
