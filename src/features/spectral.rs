@@ -131,3 +131,31 @@ pub fn melspectrogram(
     }
     mel_S
 }
+
+pub fn mfcc(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    S: Option<&Array2<f32>>,
+    n_mfcc: Option<usize>,
+    dct_type: Option<i32>,
+    norm: Option<&str>,
+) -> Array2<f32> {
+    let n_mfcc = n_mfcc.unwrap_or(20);
+    let S = melspectrogram(y, sr, S, None, None, None, None, None);
+    let log_S = S.mapv(|x| x.max(1e-10).ln());
+    let mut mfcc = Array2::zeros((n_mfcc, S.shape()[1]));
+    let dct_type = dct_type.unwrap_or(2);
+    for t in 0..S.shape()[1] {
+        for k in 0..n_mfcc {
+            let mut sum = 0.0;
+            for n in 0..S.shape()[0] {
+                sum += log_S[[n, t]] * (std::f32::consts::PI * k as f32 * (n as f32 + 0.5) / S.shape()[0] as f32).cos();
+            }
+            mfcc[[k, t]] = sum * if dct_type == 2 && k == 0 { 1.0 / f32::sqrt(2.0) } else { 1.0 } * 2.0 / S.shape()[0] as f32;
+        }
+    }
+    if norm == Some("ortho") {
+        mfcc *= f32::sqrt(2.0 / S.shape()[0] as f32);
+    }
+    mfcc
+}
