@@ -558,3 +558,38 @@ pub fn hpss(
         S.to_owned() * &perc_mask,
     )
 }
+
+pub fn pitch_autocorr(
+    y: &[f32],
+    sr: Option<u32>,
+    frame_length: Option<usize>,
+    hop_length: Option<usize>,
+    fmin: Option<f32>,
+    fmax: Option<f32>,
+) -> Array1<f32> {
+    let sr = sr.unwrap_or(44100);
+    let frame_len = frame_length.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(frame_len / 4);
+    let fmin = fmin.unwrap_or(50.0);
+    let fmax = fmax.unwrap_or(500.0);
+    let n_frames = (y.len() - frame_len) / hop + 1;
+    let mut pitch = Array1::zeros(n_frames);
+
+    for i in 0..n_frames {
+        let start = i * hop;
+        let frame = &y[start..(start + frame_len).min(y.len())];
+        let autocorr = crate::signal_processing::time_domain::autocorrelate(frame, Some(frame_len), None);
+        let lag_min = (sr as f32 / fmax).round() as usize;
+        let lag_max = (sr as f32 / fmin).round() as usize;
+        let max_idx = autocorr[lag_min..lag_max.min(autocorr.len())]
+            .iter()
+            .position(|&x| x == *autocorr[lag_min..lag_max.min(autocorr.len())]
+                .iter()
+                .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                .unwrap())
+            .unwrap_or(0) + lag_min;
+        pitch[i] = if max_idx > 0 { sr as f32 / max_idx as f32 } else { 0.0 };
+    }
+
+    pitch
+}
