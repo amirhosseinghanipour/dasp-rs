@@ -203,7 +203,7 @@ pub fn plimit_intervals(primes: &[usize]) -> Vec<f32> {
         intervals.extend(new_intervals);
     }
     intervals.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    intervals.dedup_by(|a, b| (a - b).abs() < 1e-6);
+    intervals.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
     intervals.retain(|&x| x >= 1.0 && x <= 2.0);
     intervals
 }
