@@ -3,7 +3,23 @@ pub fn key_to_notes(key: &str, _unicode: Option<bool>, _natural: Option<bool>) -
     notes.iter().map(|&n| n.to_string()).collect()
 }
 
-pub fn key_to_degrees(_key: &str) -> Vec<usize> { unimplemented!() }
+pub fn key_to_degrees(key: &str) -> Vec<usize> {
+    let key = key.to_lowercase();
+    let (tonic, mode) = key.split_once(':').unwrap_or((&key, "maj"));
+    let tonic_shift = match tonic {
+        "c" => 0, "c#" | "db" => 1, "d" => 2, "d#" | "eb" => 3, "e" => 4,
+        "f" => 5, "f#" | "gb" => 6, "g" => 7, "g#" | "ab" => 8, "a" => 9,
+        "a#" | "bb" => 10, "b" => 11, _ => 0,
+    };
+    let major = vec![0, 2, 4, 5, 7, 9, 11];
+    let minor = vec![0, 2, 3, 5, 7, 8, 10];
+    let degrees = match mode {
+        "maj" | "major" => major,
+        "min" | "minor" => minor,
+        _ => major,
+    };
+    degrees.into_iter().map(|d| (d + tonic_shift) % 12).collect()
+}
 pub fn mela_to_svara(_mela: usize, _abbr: Option<bool>, _unicode: Option<bool>) -> Vec<String> { unimplemented!() }
 pub fn mela_to_degrees(_mela: usize) -> Vec<usize> { unimplemented!() }
 pub fn thaat_to_degrees(_thaat: &str) -> Vec<usize> { unimplemented!() }
