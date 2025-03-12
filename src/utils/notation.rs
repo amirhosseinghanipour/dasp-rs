@@ -108,7 +108,22 @@ pub fn list_mela() -> Vec<(usize, String)> {
     names.into_iter().enumerate().map(|(i, name)| (i + 1, name.to_string())).collect()
 }
 
-pub fn list_thaat() -> Vec<String> { unimplemented!() }
+pub fn list_thaat() -> Vec<String> {
+    vec![
+        "Bilaval".to_string(),
+        "Kalyani".to_string(),
+        "Khamaj".to_string(),
+        "Bhairav".to_string(),
+        "Purvi".to_string(),
+        "Marwa".to_string(),
+        "Kafi".to_string(),
+        "Asavari".to_string(),
+        "Todi".to_string(),
+        "Bhoopali".to_string(),
+    ]
+}
+
+
 pub fn fifths_to_note(_unison: &str, _fifths: i32, _unicode: Option<bool>) -> String { unimplemented!() }
 pub fn interval_to_fjs(_interval: f32, _unison: Option<f32>) -> String { unimplemented!() }
 pub fn interval_frequencies(_n_bins: usize, _fmin: f32, _intervals: &[f32]) -> Vec<f32> { unimplemented!() }
