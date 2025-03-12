@@ -88,7 +88,26 @@ pub fn thaat_to_degrees(thaat: &str) -> Vec<usize> {
     }
 }
 
-pub fn list_mela() -> Vec<(usize, String)> { unimplemented!() }
+pub fn list_mela() -> Vec<(usize, String)> {
+    let names = vec![
+        "Kanakangi", "Ratnangi", "Ganamurti", "Vanaspati", "Manavati", "Tanarupi",
+        "Senavati", "Hanumatodi", "Dhenuka", "Natakapriya", "Kokilapriya", "Rupavati",
+        "Gayakapriya", "Vakulabharanam", "Mayamalavagowla", "Chakravakam", "Suryakantam",
+        "Hatakambari", "Jhankaradhwani", "Natabhairavi", "Keeravani", "Kharaharapriya",
+        "Gourimanohari", "Varunapriya", "Mararanjani", "Charukesi", "Sarasangi",
+        "Harikambhoji", "Dheerasankarabharanam", "Naganandini", "Yagapriya", "Ragavardhini",
+        "Gangeyabhushani", "Vagadheeswari", "Shulini", "Chalanata", "Salagam", "Jalarnavam",
+        "Jhalavarali", "Navaneetam", "Pavani", "Raghupriya", "Gavambodhi", "Bhavapriya",
+        "Shubhapantuvarali", "Shadvidamargini", "Suvarnangi", "Divyamani", "Dhavalambari",
+        "Namanarayani", "Kamavardhini", "Ramapriya", "Gamanashrama", "Vishwambari",
+        "Shamalangi", "Shanmukhapriya", "Simhendramadhyamam", "Hemavati", "Dharmavati",
+        "Neetimati", "Kantamani", "Rishabhapriya", "Latangi", "Vachaspati", "Mechakalyani",
+        "Chitrambari", "Sucharitra", "Jyotiswarupini", "Dhatuvardhani", "Nasikabhushani",
+        "Kosalam", "Rasikapriya",
+    ];
+    names.into_iter().enumerate().map(|(i, name)| (i + 1, name.to_string())).collect()
+}
+
 pub fn list_thaat() -> Vec<String> { unimplemented!() }
 pub fn fifths_to_note(_unison: &str, _fifths: i32, _unicode: Option<bool>) -> String { unimplemented!() }
 pub fn interval_to_fjs(_interval: f32, _unison: Option<f32>) -> String { unimplemented!() }
