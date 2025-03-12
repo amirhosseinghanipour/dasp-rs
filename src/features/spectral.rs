@@ -629,3 +629,52 @@ pub fn vad_features(
 
     features
 }
+
+pub fn spectral_subband_centroids(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    S: Option<&Array2<f32>>,
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+    n_bands: Option<usize>,
+) -> Array2<f32> {
+    let sr = sr.unwrap_or(44100);
+    let n_fft = n_fft.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(n_fft / 4);
+    let n_bands = n_bands.unwrap_or(4); // e.g., 0-1kHz, 1-2kHz, 2-4kHz, 4kHz+
+    
+    let S = match (y, S) {
+        (Some(y), None) => stft(y, Some(n_fft), Some(hop), None)
+            .expect("STFT failed")
+            .mapv(|x| x.norm()),
+        (None, Some(S)) => S.to_owned(),
+        _ => panic!("Must provide either y or S"),
+    };
+    let freqs = crate::fft_frequencies(Some(sr), Some(n_fft));
+    let band_edges = Array1::linspace(0.0, sr as f32 / 2.0, n_bands + 1);
+
+    let mut centroids = Array2::zeros((n_bands, S.shape()[1]));
+    for t in 0..S.shape()[1] {
+        for b in 0..n_bands {
+            let f_low = band_edges[b];
+            let f_high = band_edges[b + 1];
+            let subband: Vec<(f32, f32)> = freqs.iter()
+                .zip(S.column(t))
+                .filter(|(f, _)| **f >= f_low && **f < f_high)
+                .map(|(f, s)| (*f, *s))
+                .collect();
+            if subband.is_empty() {
+                centroids[[b, t]] = (f_low + f_high) / 2.0;
+            } else {
+                let total_energy = subband.iter().map(|(_, s)| s).sum::<f32>();
+                centroids[[b, t]] = if total_energy > 1e-10 {
+                    subband.iter().map(|(f, s)| f * s).sum::<f32>() / total_energy
+                } else {
+                    (f_low + f_high) / 2.0
+                };
+            }
+        }
+    }
+
+    centroids
+}
