@@ -20,7 +20,39 @@ pub fn key_to_degrees(key: &str) -> Vec<usize> {
     };
     degrees.into_iter().map(|d| (d + tonic_shift) % 12).collect()
 }
-pub fn mela_to_svara(_mela: usize, _abbr: Option<bool>, _unicode: Option<bool>) -> Vec<String> { unimplemented!() }
+
+pub fn mela_to_svara(mela: usize, abbr: Option<bool>, unicode: Option<bool>) -> Vec<String> {
+    let abbr = abbr.unwrap_or(false);
+    let unicode = unicode.unwrap_or(false);
+    let degrees = mela_to_degrees(mela);
+    let svara_full = if unicode {
+        vec!["ṣaḍjam", "ṛṣabham", "gāndhāram", "madhyamam", "pañcamam", "dhaivatam", "niṣādam"]
+    } else {
+        vec!["shadjam", "rishabham", "gandharam", "madhyamam", "panchamam", "dhaivatam", "nishadam"]
+    };
+    let svara_abbr = vec!["S", "R", "G", "M", "P", "D", "N"];
+    let mut result = Vec::new();
+    for (i, &deg) in degrees.iter().enumerate() {
+        let base = match i {
+            0 => "S", 1..=3 => "R", 4..=6 => "G", 7 => "M", 8 => "P", 9..=11 => "D", 12..=14 => "N",
+            _ => "S", // Shouldn’t happen with valid mela
+        };
+        let variant = match deg % 12 {
+            1 => "1", 2 => "2", 3 => "3", 5 => "1", 6 => "2", 7 => "3", 8 => "1", 9 => "2", 10 => "3", _ => "",
+        };
+        let name = if abbr {
+            format!("{}{}", base, variant)
+        } else {
+            let idx = match base {
+                "S" => 0, "R" => 1, "G" => 2, "M" => 3, "P" => 4, "D" => 5, "N" => 6, _ => 0,
+            };
+            format!("{}{}", svara_full[idx], if variant.is_empty() { "" } else { variant })
+        };
+        result.push(name);
+    }
+    result
+}
+
 pub fn mela_to_degrees(_mela: usize) -> Vec<usize> { unimplemented!() }
 pub fn thaat_to_degrees(_thaat: &str) -> Vec<usize> { unimplemented!() }
 pub fn list_mela() -> Vec<(usize, String)> { unimplemented!() }
