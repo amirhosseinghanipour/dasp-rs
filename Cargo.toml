@@ -1,0 +1,13 @@
+[package]
+name = "aurust"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hound = "3.5.1"
+rustfft = "6.2.0"
+num-complex = "0.4.6"
+thiserror = "1.0"
+rubato = "0.16.1"
+ndarray = "0.16.1"
+approx = "0.5.1"
