@@ -1,4 +1,5 @@
 use ndarray::Array1;
+use crate::utils::notation;
 
 pub fn hz_to_note(frequencies: &[f32]) -> Vec<String> {
     frequencies.iter().map(|&f| {
@@ -29,7 +30,24 @@ pub fn hz_to_svara_h(frequencies: &[f32], Sa: f32, abbr: Option<bool>) -> Vec<St
     }).collect()
 }
 
-pub fn hz_to_svara_c(_frequencies: &[f32], _Sa: f32, _mela: Option<usize>) -> Vec<String> { unimplemented!() }
+pub fn hz_to_svara_c(frequencies: &[f32], Sa: f32, mela: Option<usize>) -> Vec<String> {
+    let mela = mela.unwrap_or(29);
+    let degrees = notation::mela_to_degrees(mela);
+    let midi_Sa = hz_to_midi(&[Sa])[0];
+    let midi_notes = hz_to_midi(frequencies);
+    midi_notes.iter().map(|&m| {
+        let semitone = ((m - midi_Sa + 0.5).round() as i32 % 12 + 12) % 12;
+        let idx = degrees.iter().position(|&d| d == semitone as usize).unwrap_or(0);
+        let base = match idx {
+            0 => "S", 1..=3 => "R", 4..=6 => "G", 7 => "M", 8 => "P", 9..=11 => "D", 12..=14 => "N", _ => "S",
+        };
+        let variant = match degrees[idx] % 12 {
+            1 => "1", 2 => "2", 3 => "3", 5 => "1", 6 => "2", 7 => "3", 8 => "1", 9 => "2", 10 => "3", _ => "",
+        };
+        format!("{}{}", base, variant)
+    }).collect()
+}
+
 pub fn hz_to_fjs(_frequencies: &[f32], _fmin: Option<f32>, _unison: Option<f32>) -> Vec<String> { unimplemented!() }
 
 pub fn midi_to_hz(notes: &[f32]) -> Vec<f32> {
