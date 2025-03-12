@@ -12,7 +12,7 @@ pub fn chroma_stft(
     n_fft: Option<usize>,
     hop_length: Option<usize>,
     tuning: Option<f32>,
-) -> Array2<f32> {
+) -> Result<Array2<f32>, String> {
     let sr = sr.unwrap_or(44100);
     let n_fft = n_fft.unwrap_or(2048);
     let hop = hop_length.unwrap_or(n_fft / 4);
@@ -36,7 +36,7 @@ pub fn chroma_stft(
     if let Some(norm_val) = norm {
         chroma.mapv_inplace(|x| x / norm_val);
     }
-    chroma
+    Ok(chroma)
 }
 
 pub fn chroma_cqt(
@@ -46,7 +46,7 @@ pub fn chroma_cqt(
     hop_length: Option<usize>,
     fmin: Option<f32>,
     bins_per_octave: Option<usize>,
-) -> Array2<f32> {
+) -> Result<Array2<f32>, String> {
     let sr = sr.unwrap_or(44100);
     let hop = hop_length.unwrap_or(512);
     let fmin = fmin.unwrap_or(32.70);
@@ -66,7 +66,7 @@ pub fn chroma_cqt(
             chroma[[pitch_class, frame]] += C[[bin, frame]].norm();
         }
     }
-    chroma
+    Ok(chroma)
 }
 
 pub fn chroma_cens(
@@ -77,8 +77,8 @@ pub fn chroma_cens(
     fmin: Option<f32>,
     bins_per_octave: Option<usize>,
     win_length: Option<usize>,
-) -> Array2<f32> {
-    let chroma = chroma_cqt(y, sr, C, hop_length, fmin, bins_per_octave);
+) -> Result<Array2<f32>, String> {
+    let chroma = chroma_cqt(y, sr, C, hop_length, fmin, bins_per_octave)?;
     let win = win_length.unwrap_or(41);
     let half_win = win / 2;
     let mut cens = Array2::zeros(chroma.dim());
@@ -89,7 +89,7 @@ pub fn chroma_cens(
             cens[[p, t]] = if norm[p] > 1e-6 { chroma[[p, t]] / norm[p] } else { 0.0 };
         }
     }
-    cens
+    Ok(cens)
 }
 
 pub fn melspectrogram(
@@ -101,7 +101,7 @@ pub fn melspectrogram(
     n_mels: Option<usize>,
     fmin: Option<f32>,
     fmax: Option<f32>,
-) -> Array2<f32> {
+) -> Result<Array2<f32>, String> {
     let sr = sr.unwrap_or(44100);
     let n_fft = n_fft.unwrap_or(2048);
     let hop = hop_length.unwrap_or(n_fft / 4);
@@ -131,7 +131,7 @@ pub fn melspectrogram(
             }
         }
     }
-    mel_S
+    Ok(mel_S)
 }
 
 pub fn mfcc(
@@ -141,9 +141,9 @@ pub fn mfcc(
     n_mfcc: Option<usize>,
     dct_type: Option<i32>,
     norm: Option<&str>,
-) -> Array2<f32> {
+) -> Result<Array2<f32>, String> {
     let n_mfcc = n_mfcc.unwrap_or(20);
-    let S = melspectrogram(y, sr, S, None, None, None, None, None);
+    let S = melspectrogram(y, sr, S, None, None, None, None, None)?;
     let log_S = S.mapv(|x| x.max(1e-10).ln());
     let mut mfcc = Array2::zeros((n_mfcc, S.shape()[1]));
     let dct_type = dct_type.unwrap_or(2);
@@ -159,7 +159,7 @@ pub fn mfcc(
     if norm == Some("ortho") {
         mfcc *= f32::sqrt(2.0 / S.shape()[0] as f32);
     }
-    mfcc
+    Ok(mfcc)
 }
 
 pub fn rms(
@@ -167,7 +167,7 @@ pub fn rms(
     S: Option<&Array2<f32>>,
     frame_length: Option<usize>,
     hop_length: Option<usize>,
-) -> Array1<f32> {
+) -> Result<Array1<f32>, String> {
     let frame_len = frame_length.unwrap_or(2048);
     let hop = hop_length.unwrap_or(frame_len / 4);
     match (y, S) {
@@ -179,9 +179,9 @@ pub fn rms(
                 let slice = &y[start..(start + frame_len).min(y.len())];
                 rms[i] = f32::sqrt(slice.iter().map(|x| x.powi(2)).sum::<f32>() / slice.len() as f32);
             }
-            rms
+            Ok(rms)
         }
-        (None, Some(S)) => S.map_axis(Axis(0), |row| f32::sqrt(row.iter().map(|x| x.powi(2)).sum::<f32>() / row.len() as f32)),
+        (None, Some(S)) => Ok(S.map_axis(Axis(0), |row| f32::sqrt(row.iter().map(|x| x.powi(2)).sum::<f32>() / row.len() as f32))),
         _ => panic!("Must provide either y or S"),
     }
 }
@@ -192,7 +192,7 @@ pub fn spectral_centroid(
     S: Option<&Array2<f32>>,
     n_fft: Option<usize>,
     hop_length: Option<usize>,
-) -> Array1<f32> {
+) -> Result<Array1<f32>, String> {
     let sr = sr.unwrap_or(44100);
     let n_fft = n_fft.unwrap_or(2048);
     let hop = hop_length.unwrap_or(n_fft / 4);
@@ -202,10 +202,10 @@ pub fn spectral_centroid(
         _ => panic!("Must provide either y or S"),
     };
     let freqs = crate::fft_frequencies(Some(sr), Some(n_fft));
-    S.axis_iter(Axis(1)).map(|frame| {
+    Ok(S.axis_iter(Axis(1)).map(|frame| {
         let total = frame.sum();
         if total > 1e-6 { frame.dot(&Array1::from_vec(freqs.clone())) / total } else { 0.0 }
-    }).collect()
+    }).collect())
 }
 
 pub fn spectral_bandwidth(
@@ -215,7 +215,7 @@ pub fn spectral_bandwidth(
     n_fft: Option<usize>,
     hop_length: Option<usize>,
     p: Option<i32>,
-) -> Array1<f32> {
+) -> Result<Array1<f32>, String> {
     let p = p.unwrap_or(2);
     let centroid = spectral_centroid(y, sr, S, n_fft, hop_length);
     let S = match (y, S) {
@@ -224,15 +224,15 @@ pub fn spectral_bandwidth(
         _ => panic!("Must provide either y or S"),
     };
     let freqs = crate::fft_frequencies(sr, n_fft);
-    S.axis_iter(Axis(1)).zip(centroid.iter()).map(|(frame, &c)| {
+    Ok(S.axis_iter(Axis(1)).zip(centroid?.iter()).map(|(frame, &c)| {
         let total = frame.sum();
         if total > 1e-6 {
-            let dev = frame.iter().zip(freqs.iter()).map(|(&s, &f)| s * (f - c).powi(p)).sum::<f32>() / total;
+            let dev = frame.iter().zip(freqs.iter()).map(|(&s, &f)| s * (f - c).powi(p)).fold(0.0, |acc, x| acc + x) / total;
             dev.powf(1.0 / p as f32)
         } else {
             0.0
         }
-    }).collect()
+    }).collect())
 }
 
 pub fn spectral_contrast(
@@ -359,8 +359,8 @@ pub fn tonnetz(
     y: Option<&[f32]>,
     sr: Option<u32>,
     chroma: Option<&Array2<f32>>,
-) -> Array2<f32> {
-    let chroma_stft_result = chroma_stft(y, sr, None, None, None, None, None);
+) -> Result<Array2<f32>, String> {
+    let chroma_stft_result = chroma_stft(y, sr, None, None, None, None, None)?;
     let chroma = chroma.unwrap_or(&chroma_stft_result);
     let transform = Array2::from_shape_vec((6, 12), vec![
         1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Fifths
@@ -370,7 +370,7 @@ pub fn tonnetz(
         0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Major seconds
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Tritones
     ]).unwrap();
-    transform.dot(chroma)
+    Ok(transform.dot(chroma))
 }
 
 fn polyfit(x: &Array1<f32>, y: &Array1<f32>, order: usize) -> Vec<f32> {
@@ -479,30 +479,37 @@ pub fn pitch_chroma(
 pub fn cmvn(
     features: &Array2<f32>,
     axis: Option<isize>,
-    variance_normalize: Option<bool>,
-) -> Array2<f32> {
+    variance: Option<bool>,
+) -> Result<Array2<f32>, String> {
     let axis = axis.unwrap_or(-1);
+    let do_variance = variance.unwrap_or(true);
     let ax = if axis < 0 { 1 } else { 0 };
-    let var_norm = variance_normalize.unwrap_or(true);
 
-    let mean = features.mean_axis(Axis(ax)).unwrap();
-    let mut normalized = features.to_owned();
-
-    for i in 0..normalized.shape()[1 - ax] {
-        let mut slice = normalized.index_axis_mut(Axis(1 - ax), i);
-        slice -= &mean;
+    if features.shape()[ax] < 2 {
+        return Err("Feature dimension too small for normalization".to_string());
     }
 
-    if var_norm {
-        let variance = features.var_axis(Axis(ax), 0.0);
-        let std_dev = variance.mapv(|x| x.max(1e-10).sqrt());
-        for i in 0..normalized.shape()[1 - ax] {
-            let mut slice = normalized.index_axis_mut(Axis(1 - ax), i);
-            slice /= &std_dev;
+    let mut normalized = features.to_owned();
+    let means = normalized.mean_axis(Axis(ax)).ok_or("Failed to compute mean")?;
+    for i in 0..normalized.shape()[1 - ax] {
+        for j in 0..normalized.shape()[ax] {
+            let idx = if ax == 1 { [j, i] } else { [i, j] };
+            normalized[idx] -= means[if ax == 1 { j } else { i }];
         }
     }
 
-    normalized
+    if do_variance {
+        let variances = normalized.mapv(|x| x.powi(2)).mean_axis(Axis(ax)).ok_or("Failed to compute variance")?;
+        let std_devs = variances.mapv(|x| (x + 1e-10).sqrt());
+        for i in 0..normalized.shape()[1 - ax] {
+            for j in 0..normalized.shape()[ax] {
+                let idx = if ax == 1 { [j, i] } else { [i, j] };
+                normalized[idx] /= std_devs[if ax == 1 { j } else { i }];
+            }
+        }
+    }
+
+    Ok(normalized)
 }
 
 pub fn hpss(
