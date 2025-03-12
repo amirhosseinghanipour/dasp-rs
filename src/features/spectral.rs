@@ -232,3 +232,40 @@ pub fn spectral_bandwidth(
         }
     }).collect()
 }
+
+pub fn spectral_contrast(
+    y: Option<&[f32]>,
+    sr: Option<u32>,
+    S: Option<&Array2<f32>>,
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+    n_bands: Option<usize>,
+) -> Array2<f32> {
+    let sr = sr.unwrap_or(44100);
+    let n_fft = n_fft.unwrap_or(2048);
+    let hop = hop_length.unwrap_or(n_fft / 4);
+    let n_bands = n_bands.unwrap_or(6);
+    let S = match (y, S) {
+        (Some(y), None) => stft(y, Some(n_fft), Some(hop), None).unwrap().mapv(|x| x.norm()),
+        (None, Some(S)) => S.to_owned(),
+        _ => panic!("Must provide either y or S"),
+    };
+    let freqs = crate::frequencies::fft_frequencies(Some(sr), Some(n_fft));
+    let band_edges = Array1::logspace(2.0, 0.0, f32::log2(sr as f32 / 2.0), n_bands + 1);
+    let mut contrast = Array2::zeros((n_bands + 1, S.shape()[1]));
+    for t in 0..S.shape()[1] {
+        for b in 0..n_bands + 1 {
+            let f_low = if b == 0 { 0.0 } else { band_edges[b - 1] };
+            let f_high = band_edges[b];
+            let band = S.slice(s![..;..;t]).iter().zip(freqs.iter()).filter(|&(_, &f)| f >= f_low && f <= f_high).map(|(&s, _)| s);
+            let band_vec: Vec<_> = band.collect();
+            if !band_vec.is_empty() {
+                let sorted: Vec<_> = band_vec.into_iter().sorted_by(|a, b| a.partial_cmp(b).unwrap()).collect();
+                let peak = sorted[sorted.len() - 1];
+                let valley = sorted[0];
+                contrast[[b, t]] = peak - valley;
+            }
+        }
+    }
+    contrast
+}
