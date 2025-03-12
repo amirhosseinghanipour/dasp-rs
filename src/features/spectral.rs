@@ -1,6 +1,7 @@
 use ndarray::{Array1, Array2, s, Axis};
 use crate::signal_processing::spectral::{stft, cqt};
-use crate::frequencies::{hz_to_midi, midi_to_note};
+use crate::{hz_to_midi, midi_to_note};
+use ndarray_linalg::Solve;
 
 pub fn chroma_stft(
     y: Option<&[f32]>,
@@ -20,7 +21,7 @@ pub fn chroma_stft(
         _ => panic!("Must provide either y or S"),
     };
     let n_bins = S.shape()[0];
-    let freqs = crate::frequencies::fft_frequencies(Some(sr), Some(n_fft));
+    let freqs = crate::fft_frequencies(Some(sr), Some(n_fft));
     let mut chroma = Array2::zeros((12, S.shape()[1]));
 
     for frame in 0..S.shape()[1] {
@@ -47,12 +48,12 @@ pub fn chroma_cqt(
 ) -> Array2<f32> {
     let sr = sr.unwrap_or(44100);
     let hop = hop_length.unwrap_or(512);
-    let fmin = fmin.unwrap_or(32.70);
+    let fmin = fmin.unwrap_or(32.70); // C1
     let bpo = bins_per_octave.unwrap_or(12);
-    let n_bins = bpo * 3;
+    let n_bins = bpo * 3; // 3 octaves default
     let C = match (y, C) {
-        (Some(y), None) => cqt(y, sr, Some(hop), Some(fmin), Some(n_bins), Some(bpo)).unwrap(),
-        (None, Some(C)) => C.to_owned(),
+        (Some(y), None) => cqt(y, Some(sr), Some(hop), Some(fmin), Some(n_bins)),
+        (None, Some(C)) => C.mapv(|x| num_complex::Complex::new(x, 0.0)),
         _ => panic!("Must provide either y or C"),
     };
     let mut chroma = Array2::zeros((12, C.shape()[1]));
@@ -60,7 +61,7 @@ pub fn chroma_cqt(
         for bin in 0..C.shape()[0] {
             let freq = fmin * 2.0f32.powf(bin as f32 / bpo as f32);
             let midi = hz_to_midi(&[freq])[0];
-            let pitch_class = (midi.round() as usize % 12) as usize;
+            let pitch_class = (midi.round() as usize % 12);
             chroma[[pitch_class, frame]] += C[[bin, frame]].norm();
         }
     }
@@ -111,9 +112,9 @@ pub fn melspectrogram(
         (None, Some(S)) => S.to_owned(),
         _ => panic!("Must provide either y or S"),
     };
-    let mel_f = crate::frequencies::mel_frequencies(Some(n_mels), Some(fmin), Some(fmax), None);
+    let mel_f = crate::mel_frequencies(Some(n_mels), Some(fmin), Some(fmax), None);
     let mut mel_S = Array2::zeros((n_mels, S.shape()[1]));
-    let fft_f = crate::frequencies::fft_frequencies(Some(sr), Some(n_fft));
+    let fft_f = crate::fft_frequencies(Some(sr), Some(n_fft));
     for m in 0..n_mels {
         let f_low = if m == 0 { fmin } else { mel_f[m - 1] };
         let f_center = mel_f[m];
@@ -199,7 +200,7 @@ pub fn spectral_centroid(
         (None, Some(S)) => S.to_owned(),
         _ => panic!("Must provide either y or S"),
     };
-    let freqs = crate::frequencies::fft_frequencies(Some(sr), Some(n_fft));
+    let freqs = crate::fft_frequencies(Some(sr), Some(n_fft));
     S.axis_iter(Axis(1)).map(|frame| {
         let total = frame.sum();
         if total > 1e-6 { frame.dot(&Array1::from_vec(freqs.clone())) / total } else { 0.0 }
@@ -217,11 +218,11 @@ pub fn spectral_bandwidth(
     let p = p.unwrap_or(2);
     let centroid = spectral_centroid(y, sr, S, n_fft, hop_length);
     let S = match (y, S) {
-        (Some(y), None) => stft(y, Some(n_fft), Some(hop_length.unwrap_or(n_fft.unwrap_or(2048) / 4)), None).unwrap().mapv(|x| x.norm()),
+        (Some(y), None) => stft(y, Some(n_fft.unwrap()), Some(hop_length.unwrap_or(n_fft.unwrap_or(2048) / 4)), None).unwrap().mapv(|x| x.norm()),
         (None, Some(S)) => S.to_owned(),
         _ => panic!("Must provide either y or S"),
     };
-    let freqs = crate::frequencies::fft_frequencies(sr, n_fft);
+    let freqs = crate::fft_frequencies(sr, n_fft);
     S.axis_iter(Axis(1)).zip(centroid.iter()).map(|(frame, &c)| {
         let total = frame.sum();
         if total > 1e-6 {
@@ -250,17 +251,19 @@ pub fn spectral_contrast(
         (None, Some(S)) => S.to_owned(),
         _ => panic!("Must provide either y or S"),
     };
-    let freqs = crate::frequencies::fft_frequencies(Some(sr), Some(n_fft));
+    let freqs = crate::fft_frequencies(Some(sr), Some(n_fft));
     let band_edges = Array1::logspace(2.0, 0.0, f32::log2(sr as f32 / 2.0), n_bands + 1);
     let mut contrast = Array2::zeros((n_bands + 1, S.shape()[1]));
     for t in 0..S.shape()[1] {
         for b in 0..n_bands + 1 {
             let f_low = if b == 0 { 0.0 } else { band_edges[b - 1] };
             let f_high = band_edges[b];
-            let band = S.slice(s![..;..;t]).iter().zip(freqs.iter()).filter(|&(_, &f)| f >= f_low && f <= f_high).map(|(&s, _)| s);
+            let slice = S.slice(s![..,..;t]);
+            let band = slice.iter().zip(freqs.iter()).filter(|&(_, &f)| f >= f_low && f <= f_high).map(|(&s, _)| s);
             let band_vec: Vec<_> = band.collect();
             if !band_vec.is_empty() {
-                let sorted: Vec<_> = band_vec.into_iter().sorted_by(|a, b| a.partial_cmp(b).unwrap()).collect();
+                let mut sorted: Vec<_> = band_vec;
+                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
                 let peak = sorted[sorted.len() - 1];
                 let valley = sorted[0];
                 contrast[[b, t]] = peak - valley;
@@ -308,7 +311,7 @@ pub fn spectral_rolloff(
         (None, Some(S)) => S.to_owned(),
         _ => panic!("Must provide either y or S"),
     };
-    let freqs = crate::frequencies::fft_frequencies(Some(sr), Some(n_fft));
+    let freqs = crate::fft_frequencies(Some(sr), Some(n_fft));
     S.axis_iter(Axis(1)).map(|frame| {
         let total_energy = frame.sum();
         let target_energy = total_energy * roll_percent;
@@ -356,7 +359,8 @@ pub fn tonnetz(
     sr: Option<u32>,
     chroma: Option<&Array2<f32>>,
 ) -> Array2<f32> {
-    let chroma = chroma.unwrap_or(&chroma_stft(y, sr, None, None, None, None, None));
+    let chroma_stft_result = chroma_stft(y, sr, None, None, None, None, None);
+    let chroma = chroma.unwrap_or(&chroma_stft_result);
     let transform = Array2::from_shape_vec((6, 12), vec![
         1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Fifths
         0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, // Minor thirds
@@ -394,6 +398,6 @@ fn polyfit(x: &Array1<f32>, y: &Array1<f32>, order: usize) -> Vec<f32> {
             A[[i, j]] = x[i].powi(j as i32);
         }
     }
-    let coeffs = A.solve_into(y.to_owned()).unwrap_or_else(|_| Array1::zeros(n));
+    let coeffs = A.solve(&y.to_owned()).unwrap_or_else(|_| Array1::zeros(n));
     coeffs.to_vec()
 }
