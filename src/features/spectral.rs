@@ -1,4 +1,4 @@
-use ndarray::{Array1, Array2, s, Axis, Array, arr2};
+use ndarray::{Array1, Array2, s, Axis};
 use crate::signal_processing::time_frequency::{stft, cqt};
 use crate::hz_to_midi;
 use ndarray_linalg::{Solve, Eig};
@@ -804,7 +804,7 @@ pub fn pitch_chroma(
         for (bin, &f) in freqs.iter().enumerate() {
             if frame[bin] > 0.0 {
                 let midi = crate::hz_to_midi(&[f])[0];
-                let pitch_class = (midi.round() as usize % 12);
+                let pitch_class = midi.round() as usize % 12;
                 chroma[[pitch_class, t]] += frame[bin];
             }
         }

@@ -3,7 +3,6 @@ use std::path::Path;
 use thiserror::Error;
 use crate::signal_processing::to_mono;
 use ndarray::ShapeError;
-use std::fs::File;
 
 /// Custom error types for audio processing operations.
 ///
