@@ -22,6 +22,12 @@ pub enum AudioError {
     StreamError,
     #[error("Array shape error: {0}")]
     ShapeError(#[from] ShapeError),
+    #[error("Insufficient data: {0}")]
+    InsufficientData(String),
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+    #[error("Computation failed: {0}")]
+    ComputationFailed(String),
 }
 
 
