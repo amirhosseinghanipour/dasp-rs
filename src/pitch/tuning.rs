@@ -1,4 +1,4 @@
-use ndarray::{Array1, Array2, Axis};
+use ndarray::Array2;
 use crate::signal_processing::time_frequency::stft;
 use crate::fft_frequencies;
 use crate::AudioError;
