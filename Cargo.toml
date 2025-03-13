@@ -1,7 +1,10 @@
 [package]
-name = "aurust"
+name = "dasp-rs"
 version = "0.1.0"
 edition = "2024"
+description = "A crate for digital signal processing, speech processing, music analysis, and phonetics."
+authors = ["Amirhossein Ghanipour amirhosseinghanipour@gmail.com"]
+license = "CC-BY-NC-4.0"
 
 [dependencies]
 hound = "3.5.1"

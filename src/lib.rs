@@ -1,6 +1,6 @@
-//! # Audio Processing Library
+//! # DASP-RS: Digital Audio Signal Processing in Rust
 //!
-//! This library provides a collection of tools and utilities for audio signal processing,
+//! DASP-RS provides a collection of tools and utilities for audio signal processing,
 //! analysis, and generation. It includes functionality for handling audio input/output,
 //! performing signal transformations, generating synthetic signals, extracting audio features,
 //! working with magnitude spectra, and pitch-related operations. The library is designed
@@ -20,12 +20,12 @@
 //!
 //! ```toml
 //! [dependencies]
-//! aurust = "0.1.0"
+//! dasp-rs = "0.1.0"
 //! ```
 //!
 //! ```rust
-//! use aurust::get_duration;
-//! let audio = aurust::audio_io::load("example.wav", None, None, None, None).unwrap();
+//! use dasp-rs::get_duration;
+//! let audio = dasp-rs::audio_io::load("example.wav", None, None, None, None).unwrap();
 //! let duration = get_duration(&audio);
 //! println!("Duration: {} seconds", duration);
 //! ```
