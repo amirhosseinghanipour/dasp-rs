@@ -1,2 +1,2 @@
-# aurust
-Aurust is a Rust library for audio and music analysis
+# DASP-RS
+`dasp-rs` is a Rust crate for digital audio signal processing.
