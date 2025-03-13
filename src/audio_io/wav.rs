@@ -1,8 +1,9 @@
-use hound::WavReader;
+use hound::{WavReader, WavWriter, WavSpec, SampleFormat};
 use std::path::Path;
 use thiserror::Error;
 use crate::signal_processing::to_mono;
 use ndarray::ShapeError;
+use std::fs::File;
 
 /// Custom error types for audio processing operations.
 ///
@@ -138,6 +139,43 @@ pub fn load<P: AsRef<Path>>(
         channels: if mono.unwrap_or(true) { 1 } else { spec.channels },
     })
 }
+
+/// Exports audio data to a WAV file.
+///
+/// # Arguments
+/// * `path` - Path to the output WAV file
+/// * `audio_data` - Audio data to be exported
+///
+/// # Returns
+/// Returns `Result<(), AudioError>` indicating success or failure.
+///
+/// # Examples
+/// ```
+/// let audio_data = AudioData {
+///     samples: vec![0.0, 0.1, 0.2, 0.3],
+///     sample_rate: 44100,
+///     channels: 1,
+/// };
+/// export_to_wav("output.wav", &audio_data)?;
+/// ```
+pub fn export_to_wav<P: AsRef<Path>>(path: P, audio_data: &AudioData) -> Result<(), AudioError> {
+    let spec = WavSpec {
+        channels: audio_data.channels,
+        sample_rate: audio_data.sample_rate,
+        bits_per_sample: 32,
+        sample_format: SampleFormat::Float,
+    };
+
+    let mut writer = WavWriter::create(path, spec)?;
+
+    for sample in &audio_data.samples {
+        writer.write_sample(*sample)?;
+    }
+
+    writer.finalize()?;
+    Ok(())
+}
+
 
 /// Creates an iterator over audio blocks from a WAV file.
 ///
