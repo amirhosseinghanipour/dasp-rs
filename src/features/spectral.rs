@@ -4,6 +4,29 @@ use crate::hz_to_midi;
 use ndarray_linalg::{Solve, Eig};
 use num_complex::Complex;
 
+/// Computes chroma features using Short-Time Fourier Transform (STFT).
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed magnitude spectrogram
+/// * `norm` - Optional normalization factor
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+/// * `tuning` - Optional tuning adjustment in semitones (currently unused)
+///
+/// # Returns
+/// Returns a `Result` containing a 2D array of shape `(12, n_frames)` with chroma features,
+/// or an error message as a `String`.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let chroma = chroma_stft(Some(&y), None, None, None, None, None, None).unwrap();
+/// ```
 pub fn chroma_stft(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -39,6 +62,28 @@ pub fn chroma_stft(
     Ok(chroma)
 }
 
+/// Computes chroma features using Constant-Q Transform (CQT).
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `C` - Optional pre-computed CQT spectrogram
+/// * `hop_length` - Optional hop length (defaults to 512)
+/// * `fmin` - Optional minimum frequency (defaults to 32.70 Hz, C1)
+/// * `bins_per_octave` - Optional bins per octave (defaults to 12)
+///
+/// # Returns
+/// Returns a `Result` containing a 2D array of shape `(12, n_frames)` with chroma features,
+/// or an error message as a `String`.
+///
+/// # Panics
+/// Panics if neither `y` nor `C` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let chroma = chroma_cqt(Some(&y), None, None, None, None, None).unwrap();
+/// ```
 pub fn chroma_cqt(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -70,6 +115,26 @@ pub fn chroma_cqt(
     Ok(chroma)
 }
 
+/// Computes Chroma Energy Normalized Statistics (CENS) features.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `C` - Optional pre-computed CQT spectrogram
+/// * `hop_length` - Optional hop length (defaults to 512)
+/// * `fmin` - Optional minimum frequency (defaults to 32.70 Hz)
+/// * `bins_per_octave` - Optional bins per octave (defaults to 12)
+/// * `win_length` - Optional window length for normalization (defaults to 41)
+///
+/// # Returns
+/// Returns a `Result` containing a 2D array of shape `(12, n_frames)` with CENS features,
+/// or an error message as a `String`.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let cens = chroma_cens(Some(&y), None, None, None, None, None, None).unwrap();
+/// ```
 pub fn chroma_cens(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -93,6 +158,30 @@ pub fn chroma_cens(
     Ok(cens)
 }
 
+/// Computes a mel spectrogram.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed magnitude spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+/// * `n_mels` - Optional number of mel bands (defaults to 128)
+/// * `fmin` - Optional minimum frequency (defaults to 0 Hz)
+/// * `fmax` - Optional maximum frequency (defaults to sr/2)
+///
+/// # Returns
+/// Returns a `Result` containing a 2D array of shape `(n_mels, n_frames)` with mel spectrogram,
+/// or an error message as a `String`.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let mel = melspectrogram(Some(&y), None, None, None, None, None, None, None).unwrap();
+/// ```
 pub fn melspectrogram(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -135,6 +224,25 @@ pub fn melspectrogram(
     Ok(mel_S)
 }
 
+/// Computes Mel-frequency cepstral coefficients (MFCCs).
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_mfcc` - Optional number of MFCCs (defaults to 20)
+/// * `dct_type` - Optional DCT type (defaults to 2)
+/// * `norm` - Optional normalization type ("ortho" or None)
+///
+/// # Returns
+/// Returns a `Result` containing a 2D array of shape `(n_mfcc, n_frames)` with MFCCs,
+/// or an error message as a `String`.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let mfcc = mfcc(Some(&y), None, None, None, None, None).unwrap();
+/// ```
 pub fn mfcc(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -163,6 +271,26 @@ pub fn mfcc(
     Ok(mfcc)
 }
 
+/// Computes root mean square (RMS) energy.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `S` - Optional pre-computed spectrogram
+/// * `frame_length` - Optional frame length (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to frame_length/4)
+///
+/// # Returns
+/// Returns a `Result` containing a 1D array of RMS values per frame,
+/// or an error message as a `String`.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let rms = rms(Some(&y), None, None, None).unwrap();
+/// ```
 pub fn rms(
     y: Option<&[f32]>,
     S: Option<&Array2<f32>>,
@@ -187,6 +315,27 @@ pub fn rms(
     }
 }
 
+/// Computes spectral centroid frequencies.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+///
+/// # Returns
+/// Returns a `Result` containing a 1D array of centroid frequencies per frame,
+/// or an error message as a `String`.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let centroid = spectral_centroid(Some(&y), None, None, None, None).unwrap();
+/// ```
 pub fn spectral_centroid(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -209,6 +358,28 @@ pub fn spectral_centroid(
     }).collect())
 }
 
+/// Computes spectral bandwidth.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+/// * `p` - Optional power for bandwidth calculation (defaults to 2)
+///
+/// # Returns
+/// Returns a `Result` containing a 1D array of bandwidth values per frame,
+/// or an error message as a `String`.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let bandwidth = spectral_bandwidth(Some(&y), None, None, None, None, None).unwrap();
+/// ```
 pub fn spectral_bandwidth(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -218,14 +389,14 @@ pub fn spectral_bandwidth(
     p: Option<i32>,
 ) -> Result<Array1<f32>, String> {
     let p = p.unwrap_or(2);
-    let centroid = spectral_centroid(y, sr, S, n_fft, hop_length);
+    let centroid = spectral_centroid(y, sr, S, n_fft, hop_length)?;
     let S = match (y, S) {
         (Some(y), None) => stft(y, Some(n_fft.unwrap()), Some(hop_length.unwrap_or(n_fft.unwrap_or(2048) / 4)), None).unwrap().mapv(|x| x.norm()),
         (None, Some(S)) => S.to_owned(),
         _ => panic!("Must provide either y or S"),
     };
     let freqs = crate::fft_frequencies(sr, n_fft);
-    Ok(S.axis_iter(Axis(1)).zip(centroid?.iter()).map(|(frame, &c)| {
+    Ok(S.axis_iter(Axis(1)).zip(centroid.iter()).map(|(frame, &c)| {
         let total = frame.sum();
         if total > 1e-6 {
             let dev = frame.iter().zip(freqs.iter()).map(|(&s, &f)| s * (f - c).powi(p)).fold(0.0, |acc, x| acc + x) / total;
@@ -236,6 +407,27 @@ pub fn spectral_bandwidth(
     }).collect())
 }
 
+/// Computes spectral contrast across frequency bands.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+/// * `n_bands` - Optional number of frequency bands (defaults to 6)
+///
+/// # Returns
+/// Returns a 2D array of shape `(n_bands + 1, n_frames)` with contrast values.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let contrast = spectral_contrast(Some(&y), None, None, None, None, None);
+/// ```
 pub fn spectral_contrast(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -260,7 +452,7 @@ pub fn spectral_contrast(
         for b in 0..n_bands + 1 {
             let f_low = if b == 0 { 0.0 } else { band_edges[b - 1] };
             let f_high = band_edges[b];
-            let slice = S.slice(s![..,..;t]);
+            let slice = S.slice(s![.., t]);
             let band = slice.iter().zip(freqs.iter()).filter(|&(_, &f)| f >= f_low && f <= f_high).map(|(&s, _)| s);
             let band_vec: Vec<_> = band.collect();
             if !band_vec.is_empty() {
@@ -275,6 +467,25 @@ pub fn spectral_contrast(
     contrast
 }
 
+/// Computes spectral flatness.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+///
+/// # Returns
+/// Returns a 1D array of flatness values per frame.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let flatness = spectral_flatness(Some(&y), None, None, None);
+/// ```
 pub fn spectral_flatness(
     y: Option<&[f32]>,
     S: Option<&Array2<f32>>,
@@ -296,6 +507,27 @@ pub fn spectral_flatness(
     }).collect()
 }
 
+/// Computes spectral roll-off frequency.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+/// * `roll_percent` - Optional roll-off percentage (defaults to 0.85)
+///
+/// # Returns
+/// Returns a 1D array of roll-off frequencies per frame.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let rolloff = spectral_rolloff(Some(&y), None, None, None, None, None);
+/// ```
 pub fn spectral_rolloff(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -328,6 +560,27 @@ pub fn spectral_rolloff(
     }).collect()
 }
 
+/// Computes polynomial fit coefficients for spectral features.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+/// * `order` - Optional polynomial order (defaults to 1)
+///
+/// # Returns
+/// Returns a 2D array of shape `(order + 1, n_frames)` with polynomial coefficients.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let coeffs = poly_features(Some(&y), None, None, None, None, None);
+/// ```
 pub fn poly_features(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -356,6 +609,22 @@ pub fn poly_features(
     coeffs
 }
 
+/// Computes Tonnetz features from chroma.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `chroma` - Optional pre-computed chroma features
+///
+/// # Returns
+/// Returns a `Result` containing a 2D array of shape `(6, n_frames)` with Tonnetz features,
+/// or an error message as a `String`.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let tonnetz = tonnetz(Some(&y), None, None).unwrap();
+/// ```
 pub fn tonnetz(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -374,6 +643,18 @@ pub fn tonnetz(
     Ok(transform.dot(chroma))
 }
 
+/// Fits a polynomial to data points.
+///
+/// # Arguments
+/// * `x` - X-coordinates
+/// * `y` - Y-coordinates
+/// * `order` - Polynomial order
+///
+/// # Returns
+/// Returns a vector of polynomial coefficients.
+///
+/// # Panics
+/// Panics if linear solving fails (returns zeros instead).
 fn polyfit(x: &Array1<f32>, y: &Array1<f32>, order: usize) -> Vec<f32> {
     let n = order + 1;
     let mut A = Array2::zeros((x.len(), n));
@@ -386,6 +667,26 @@ fn polyfit(x: &Array1<f32>, y: &Array1<f32>, order: usize) -> Vec<f32> {
     coeffs.to_vec()
 }
 
+/// Computes spectral flux.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+///
+/// # Returns
+/// Returns a 1D array of flux values per frame.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided, or if STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let flux = spectral_flux(Some(&y), None, None, None, None);
+/// ```
 pub fn spectral_flux(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -411,6 +712,26 @@ pub fn spectral_flux(
     flux
 }
 
+/// Computes spectral entropy.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+///
+/// # Returns
+/// Returns a 1D array of entropy values per frame.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided, or if STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let entropy = spectral_entropy(Some(&y), None, None, None, None);
+/// ```
 pub fn spectral_entropy(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -439,6 +760,26 @@ pub fn spectral_entropy(
     }).collect()
 }
 
+/// Computes pitch chroma features.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+///
+/// # Returns
+/// Returns a 2D array of shape `(12, n_frames)` with normalized pitch chroma features.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided, or if STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let chroma = pitch_chroma(Some(&y), None, None, None, None);
+/// ```
 pub fn pitch_chroma(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -477,6 +818,23 @@ pub fn pitch_chroma(
     chroma
 }
 
+/// Applies cepstral mean and variance normalization (CMVN).
+///
+/// # Arguments
+/// * `features` - Input feature matrix
+/// * `axis` - Optional axis for normalization (-1 for time, 0 for features; defaults to -1)
+/// * `variance` - Optional flag to normalize variance (defaults to true)
+///
+/// # Returns
+/// Returns a `Result` containing the normalized feature matrix,
+/// or an error message as a `String`.
+///
+/// # Examples
+/// ```
+/// use ndarray::Array2;
+/// let features = Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+/// let normalized = cmvn(&features, None, None).unwrap();
+/// ```
 pub fn cmvn(
     features: &Array2<f32>,
     axis: Option<isize>,
@@ -513,6 +871,28 @@ pub fn cmvn(
     Ok(normalized)
 }
 
+/// Performs Harmonic-Percussive Source Separation (HPSS).
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+/// * `harm_win` - Optional window size for harmonic component (defaults to 31)
+/// * `perc_win` - Optional window size for percussive component (defaults to 31)
+///
+/// # Returns
+/// Returns a tuple `(harmonic, percussive)` containing two 2D arrays with separated components.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided, or if STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let (harmonic, percussive) = hpss(Some(&y), None, None, None, None, None, None);
+/// ```
 pub fn hpss(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -568,6 +948,24 @@ pub fn hpss(
     )
 }
 
+/// Estimates pitch using autocorrelation.
+///
+/// # Arguments
+/// * `y` - Audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `frame_length` - Optional frame length (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to frame_length/4)
+/// * `fmin` - Optional minimum frequency (defaults to 50 Hz)
+/// * `fmax` - Optional maximum frequency (defaults to 500 Hz)
+///
+/// # Returns
+/// Returns a 1D array of pitch estimates in Hz per frame.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let pitch = pitch_autocorr(&y, None, None, None, None, None);
+/// ```
 pub fn pitch_autocorr(
     y: &[f32],
     sr: Option<u32>,
@@ -603,6 +1001,26 @@ pub fn pitch_autocorr(
     pitch
 }
 
+/// Computes features for voice activity detection (VAD).
+///
+/// # Arguments
+/// * `y` - Audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `frame_length` - Optional frame length (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to frame_length/4)
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+///
+/// # Returns
+/// Returns a 2D array of shape `(3, n_frames)` with log energy, ZCR, and flatness.
+///
+/// # Panics
+/// Panics if STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let vad = vad_features(&y, None, None, None, None);
+/// ```
 pub fn vad_features(
     y: &[f32],
     sr: Option<u32>,
@@ -639,6 +1057,27 @@ pub fn vad_features(
     features
 }
 
+/// Computes spectral subband centroids.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+/// * `n_bands` - Optional number of subbands (defaults to 4)
+///
+/// # Returns
+/// Returns a 2D array of shape `(n_bands, n_frames)` with subband centroids.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided, or if STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let centroids = spectral_subband_centroids(Some(&y), None, None, None, None, None);
+/// ```
 pub fn spectral_subband_centroids(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -650,7 +1089,7 @@ pub fn spectral_subband_centroids(
     let sr = sr.unwrap_or(44100);
     let n_fft = n_fft.unwrap_or(2048);
     let hop = hop_length.unwrap_or(n_fft / 4);
-    let n_bands = n_bands.unwrap_or(4); // e.g., 0-1kHz, 1-2kHz, 2-4kHz, 4kHz+
+    let n_bands = n_bands.unwrap_or(4);
     
     let S = match (y, S) {
         (Some(y), None) => stft(y, Some(n_fft), Some(hop), None)
@@ -688,6 +1127,24 @@ pub fn spectral_subband_centroids(
     centroids
 }
 
+/// Estimates formant frequencies using LPC.
+///
+/// # Arguments
+/// * `y` - Audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `n_formants` - Optional number of formants to extract (defaults to 3)
+/// * `frame_length` - Optional frame length (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to frame_length/4)
+///
+/// # Returns
+/// Returns a `Result` containing a 2D array of shape `(n_formants, n_frames)` with formant frequencies,
+/// or an error message as a `String`.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let formants = formant_frequencies(&y, None, None, None, None).unwrap();
+/// ```
 pub fn formant_frequencies(
     y: &[f32],
     sr: Option<u32>,
@@ -730,6 +1187,14 @@ pub fn formant_frequencies(
     Ok(formants)
 }
 
+/// Computes Linear Predictive Coding (LPC) coefficients.
+///
+/// # Arguments
+/// * `frame` - Audio frame
+/// * `order` - LPC order
+///
+/// # Returns
+/// Returns a `Result` containing LPC coefficients, or an error message as a `String`.
 fn lpc(frame: &[f32], order: usize) -> Result<Vec<f32>, String> {
     if frame.len() < order {
         return Err("Frame length must be at least LPC order".to_string());
@@ -762,6 +1227,13 @@ fn lpc(frame: &[f32], order: usize) -> Result<Vec<f32>, String> {
     Ok(a)
 }
 
+/// Computes roots of a polynomial.
+///
+/// # Arguments
+/// * `coeffs` - Polynomial coefficients (highest degree first)
+///
+/// # Returns
+/// Returns a `Result` containing complex roots, or an error message as a `String`.
 fn polynomial_roots(coeffs: &[f32]) -> Result<Vec<Complex<f32>>, String> {
     if coeffs.len() <= 1 {
         return Ok(vec![]);

@@ -1,8 +1,26 @@
-use ndarray::{Array2, Array1};
+use ndarray::{Array2, Array1, Axis};
 use crate::signal_processing::spectral::istft;
 use crate::features::spectral::melspectrogram;
 use crate::features::phase_recovery::griffinlim;
 
+/// Computes Mel-frequency cepstral coefficients (MFCCs) from audio or spectrogram.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (required if `y` is provided)
+/// * `S` - Optional pre-computed spectrogram
+/// * `n_mfcc` - Optional number of MFCCs to return (defaults to 20)
+/// * `dct_type` - Optional DCT type (1, 2, or 3; defaults to 2)
+/// * `norm` - Optional normalization ("ortho" or None; defaults to None)
+///
+/// # Returns
+/// Returns a 2D array of shape `(n_mfcc, n_frames)` containing MFCCs.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let mfcc = mfcc(Some(&y), Some(44100), None, None, None, None);
+/// ```
 pub fn mfcc(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -31,6 +49,28 @@ pub fn mfcc(
     mfcc
 }
 
+/// Computes MFCCs and their first and second order deltas.
+///
+/// # Arguments
+/// * `mfcc` - Input MFCC matrix
+/// * `width` - Optional window width for delta computation (defaults to 9)
+/// * `axis` - Optional axis along which to compute deltas (-1 for time, 0 for frequency; defaults to -1)
+///
+/// # Returns
+/// Returns a tuple `(mfcc, delta, delta2)` where:
+/// - `mfcc` is the original MFCC matrix
+/// - `delta` is the first-order delta coefficients
+/// - `delta2` is the second-order delta coefficients
+///
+/// # Panics
+/// Panics if `width` is not a positive odd integer.
+///
+/// # Examples
+/// ```
+/// use ndarray::Array2;
+/// let mfcc = Array2::from_shape_vec((4, 3), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2]).unwrap();
+/// let (mfcc, delta, delta2) = deltas(&mfcc, None, None);
+/// ```
 pub fn deltas(
     mfcc: &Array2<f32>,
     width: Option<usize>,
@@ -79,6 +119,25 @@ pub fn deltas(
     (mfcc.to_owned(), delta, delta2)
 }
 
+/// Computes first and second order delta coefficients from MFCCs.
+///
+/// # Arguments
+/// * `mfcc` - Input MFCC matrix
+/// * `width` - Optional window width for delta computation (defaults to 9)
+/// * `axis` - Optional axis along which to compute deltas (-1 for time, 0 for frequency; defaults to -1)
+///
+/// # Returns
+/// Returns a tuple `(delta, delta2)` containing first and second-order delta coefficients.
+///
+/// # Panics
+/// Panics if `width` is not a positive odd integer.
+///
+/// # Examples
+/// ```
+/// use ndarray::Array2;
+/// let mfcc = Array2::from_shape_vec((4, 3), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2]).unwrap();
+/// let (delta, delta2) = mfcc_deltas(&mfcc, None, None);
+/// ```
 pub fn mfcc_deltas(
     mfcc: &Array2<f32>,
     width: Option<usize>,
@@ -127,6 +186,23 @@ pub fn mfcc_deltas(
     (delta, delta2)
 }
 
+/// Converts mel spectrogram to STFT magnitude spectrogram.
+///
+/// # Arguments
+/// * `M` - Input mel spectrogram
+/// * `sr` - Optional sample rate (defaults to 44100)
+/// * `n_fft` - Optional FFT size (defaults to 2048)
+/// * `power` - Optional power of input spectrogram (defaults to 2.0)
+///
+/// # Returns
+/// Returns a 2D array of shape `(n_fft/2 + 1, n_frames)` containing the STFT magnitude spectrogram.
+///
+/// # Examples
+/// ```
+/// use ndarray::Array2;
+/// let M = Array2::from_shape_vec((128, 10), vec![0.1; 128 * 10]).unwrap();
+/// let S = mel_to_stft(&M, None, None, None);
+/// ```
 pub fn mel_to_stft(
     M: &Array2<f32>,
     sr: Option<u32>,
@@ -157,6 +233,23 @@ pub fn mel_to_stft(
     S.mapv(|x| x.powf(1.0 / power))
 }
 
+/// Converts mel spectrogram to audio waveform.
+///
+/// # Arguments
+/// * `M` - Input mel spectrogram
+/// * `sr` - Optional sample rate (defaults to 44100)
+/// * `n_fft` - Optional FFT size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+///
+/// # Returns
+/// Returns a vector containing the reconstructed audio waveform.
+///
+/// # Examples
+/// ```
+/// use ndarray::Array2;
+/// let M = Array2::from_shape_vec((128, 10), vec![0.1; 128 * 10]).unwrap();
+/// let audio = mel_to_audio(&M, None, None, None);
+/// ```
 pub fn mel_to_audio(
     M: &Array2<f32>,
     sr: Option<u32>,
@@ -169,6 +262,22 @@ pub fn mel_to_audio(
     griffinlim(&S, None, Some(hop))
 }
 
+/// Converts MFCCs back to mel spectrogram.
+///
+/// # Arguments
+/// * `mfcc` - Input MFCC matrix
+/// * `n_mels` - Optional number of mel bins (defaults to 128)
+/// * `dct_type` - Optional DCT type (defaults to 2)
+///
+/// # Returns
+/// Returns a 2D array of shape `(n_mels, n_frames)` containing the mel spectrogram.
+///
+/// # Examples
+/// ```
+/// use ndarray::Array2;
+/// let mfcc = Array2::from_shape_vec((20, 10), vec![0.1; 20 * 10]).unwrap();
+/// let mel = mfcc_to_mel(&mfcc, None, None);
+/// ```
 pub fn mfcc_to_mel(
     mfcc: &Array2<f32>,
     n_mels: Option<usize>,
@@ -189,6 +298,24 @@ pub fn mfcc_to_mel(
     mel.mapv(f32::exp)
 }
 
+/// Converts MFCCs to audio waveform.
+///
+/// # Arguments
+/// * `mfcc` - Input MFCC matrix
+/// * `n_mels` - Optional number of mel bins (defaults to 128)
+/// * `sr` - Optional sample rate (defaults to 44100)
+/// * `n_fft` - Optional FFT size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+///
+/// # Returns
+/// Returns a vector containing the reconstructed audio waveform.
+///
+/// # Examples
+/// ```
+/// use ndarray::Array2;
+/// let mfcc = Array2::from_shape_vec((20, 10), vec![0.1; 20 * 10]).unwrap();
+/// let audio = mfcc_to_audio(&mfcc, None, None, None, None);
+/// ```
 pub fn mfcc_to_audio(
     mfcc: &Array2<f32>,
     n_mels: Option<usize>,

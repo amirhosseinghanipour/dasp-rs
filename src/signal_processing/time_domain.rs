@@ -1,6 +1,22 @@
 use crate::audio_io::AudioError;
 use ndarray::Array1;
 
+/// Computes the autocorrelation of a signal.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `max_size` - Optional maximum lag size (defaults to signal length)
+/// * `axis` - Optional axis parameter (currently unused, included for compatibility)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing the autocorrelation values for lags from 0 to `max_size - 1`.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0, 2.0, 3.0];
+/// let autocorr = autocorrelate(&signal, Some(2), None);
+/// assert_eq!(autocorr, vec![14.0, 8.0]); // [1*1 + 2*2 + 3*3, 1*2 + 2*3]
+/// ```
 pub fn autocorrelate(y: &[f32], max_size: Option<usize>, axis: Option<isize>) -> Vec<f32> {
     let max_lag = max_size.unwrap_or(y.len());
     let mut result = Vec::with_capacity(max_lag);
@@ -14,6 +30,24 @@ pub fn autocorrelate(y: &[f32], max_size: Option<usize>, axis: Option<isize>) ->
     result
 }
 
+/// Computes Linear Predictive Coding (LPC) coefficients using the autocorrelation method.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `order` - LPC order (number of coefficients to compute, excluding the leading 1.0)
+///
+/// # Returns
+/// Returns a `Result` containing a `Vec<f32>` of LPC coefficients,
+/// or an `AudioError` if the signal length is too short.
+///
+/// # Errors
+/// * `AudioError::InvalidRange` - If `y.len()` is less than or equal to `order`.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0, 2.0, 3.0, 4.0];
+/// let coeffs = lpc(&signal, 2).unwrap();
+/// ```
 pub fn lpc(y: &[f32], order: usize) -> Result<Vec<f32>, AudioError> {
     if y.len() <= order {
         return Err(AudioError::InvalidRange);
@@ -38,6 +72,22 @@ pub fn lpc(y: &[f32], order: usize) -> Result<Vec<f32>, AudioError> {
     Ok(a)
 }
 
+/// Detects zero crossings in a signal.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `threshold` - Optional threshold value for zero crossing (defaults to 0.0)
+/// * `pad` - Optional flag to pad with a zero crossing at index 0 if none are found (defaults to false)
+///
+/// # Returns
+/// Returns a `Vec<usize>` containing the indices where zero crossings occur.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0, -1.0, 2.0, -2.0];
+/// let crossings = zero_crossings(&signal, None, None);
+/// assert_eq!(crossings, vec![1, 3]);
+/// ```
 pub fn zero_crossings(y: &[f32], threshold: Option<f32>, pad: Option<bool>) -> Vec<usize> {
     let thresh = threshold.unwrap_or(0.0);
     let mut crossings = Vec::new();
@@ -55,6 +105,21 @@ pub fn zero_crossings(y: &[f32], threshold: Option<f32>, pad: Option<bool>) -> V
     crossings
 }
 
+/// Applies μ-law compression to a signal.
+///
+/// # Arguments
+/// * `x` - Input signal as a slice of `f32`
+/// * `mu` - Optional μ-law parameter (defaults to 255.0)
+/// * `quantize` - Optional flag to quantize the output to 8-bit levels (defaults to false)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing the compressed signal.
+///
+/// # Examples
+/// ```
+/// let signal = vec![0.5, -0.5];
+/// let compressed = mu_compress(&signal, None, None);
+/// ```
 pub fn mu_compress(x: &[f32], mu: Option<f32>, quantize: Option<bool>) -> Vec<f32> {
     let mu_val = mu.unwrap_or(255.0);
     x.iter().map(|&v| {
@@ -68,6 +133,21 @@ pub fn mu_compress(x: &[f32], mu: Option<f32>, quantize: Option<bool>) -> Vec<f3
     }).collect()
 }
 
+/// Applies μ-law expansion to a compressed signal.
+///
+/// # Arguments
+/// * `x` - Input compressed signal as a slice of `f32`
+/// * `mu` - Optional μ-law parameter (defaults to 255.0)
+/// * `quantize` - Optional flag (unused, included for symmetry with `mu_compress`)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing the expanded signal.
+///
+/// # Examples
+/// ```
+/// let compressed = vec![0.5, -0.5];
+/// let expanded = mu_expand(&compressed, None, None);
+/// ```
 pub fn mu_expand(x: &[f32], mu: Option<f32>, quantize: Option<bool>) -> Vec<f32> {
     let mu_val = mu.unwrap_or(255.0);
     x.iter().map(|&v| {
@@ -76,6 +156,21 @@ pub fn mu_expand(x: &[f32], mu: Option<f32>, quantize: Option<bool>) -> Vec<f32>
     }).collect()
 }
 
+/// Computes the logarithmic energy of framed audio.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `frame_length` - Optional frame length in samples (defaults to 2048)
+/// * `hop_length` - Optional hop length in samples (defaults to frame_length / 4)
+///
+/// # Returns
+/// Returns an `Array1<f32>` containing the log energy for each frame.
+///
+/// # Examples
+/// ```
+/// let signal = vec![0.1, 0.2, 0.3, 0.4, 0.5];
+/// let energy = log_energy(&signal, Some(2), Some(1));
+/// ```
 pub fn log_energy(
     y: &[f32],
     frame_length: Option<usize>,

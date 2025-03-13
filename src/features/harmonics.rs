@@ -1,6 +1,30 @@
 use ndarray::Array2;
 use num_complex::Complex;
 
+/// Interpolates harmonic amplitudes across frequency bins.
+///
+/// Performs linear interpolation of input amplitudes at harmonic frequencies
+/// specified by the fundamental frequencies and harmonic multipliers.
+///
+/// # Arguments
+/// * `x` - Input amplitude spectrum
+/// * `freqs` - Frequency bins corresponding to `x`
+/// * `harmonics` - Harmonic multipliers (e.g., [1.0, 2.0, 3.0] for first three harmonics)
+///
+/// # Returns
+/// Returns a 2D array of shape `(n_harmonics, n_bins)` containing interpolated
+/// amplitudes for each harmonic at each frequency bin.
+///
+/// # Panics
+/// Panics if `x` and `freqs` have different lengths.
+///
+/// # Examples
+/// ```
+/// let x = vec![0.1, 0.2, 0.3, 0.4];
+/// let freqs = vec![0.0, 100.0, 200.0, 300.0];
+/// let harmonics = vec![1.0, 2.0];
+/// let result = interp_harmonics(&x, &freqs, &harmonics);
+/// ```
 pub fn interp_harmonics(x: &[f32], freqs: &[f32], harmonics: &[f32]) -> Array2<f32> {
     assert_eq!(x.len(), freqs.len(), "x and freqs must have the same length");
     let n_bins = freqs.len();
@@ -28,6 +52,31 @@ pub fn interp_harmonics(x: &[f32], freqs: &[f32], harmonics: &[f32]) -> Array2<f
     result
 }
 
+/// Computes a salience map from a spectrogram using harmonic summation.
+///
+/// Calculates salience by summing weighted harmonic contributions for each
+/// frequency bin across time frames.
+///
+/// # Arguments
+/// * `S` - Input spectrogram (n_bins × n_frames)
+/// * `freqs` - Frequency bins corresponding to spectrogram rows
+/// * `harmonics` - Harmonic multipliers
+/// * `weights` - Optional weights for each harmonic (defaults to 1.0 for all)
+///
+/// # Returns
+/// Returns a 2D array of shape `(n_bins, n_frames)` containing the salience map.
+///
+/// # Panics
+/// Panics if `weights` length doesn't match `harmonics` length when provided.
+///
+/// # Examples
+/// ```
+/// use ndarray::Array2;
+/// let S = Array2::from_shape_vec((4, 3), vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2]).unwrap();
+/// let freqs = vec![0.0, 100.0, 200.0, 300.0];
+/// let harmonics = vec![1.0, 2.0];
+/// let salience_map = salience(&S, &freqs, &harmonics, None);
+/// ```
 pub fn salience(S: &Array2<f32>, freqs: &[f32], harmonics: &[f32], weights: Option<&[f32]>) -> Array2<f32> {
     let n_bins = S.shape()[0];
     let n_frames = S.shape()[1];
@@ -59,6 +108,32 @@ pub fn salience(S: &Array2<f32>, freqs: &[f32], harmonics: &[f32], weights: Opti
     salience_map
 }
 
+/// Extracts harmonic amplitudes based on fundamental frequencies.
+///
+/// Interpolates amplitudes at harmonic frequencies derived from time-varying
+/// fundamental frequencies.
+///
+/// # Arguments
+/// * `x` - Input amplitude spectrum
+/// * `f0` - Fundamental frequencies across frames
+/// * `freqs` - Frequency bins corresponding to `x`
+/// * `harmonics` - Harmonic multipliers
+///
+/// # Returns
+/// Returns a 2D array of shape `(n_harmonics, n_frames)` containing interpolated
+/// harmonic amplitudes.
+///
+/// # Panics
+/// Panics if `x` and `freqs` have different lengths.
+///
+/// # Examples
+/// ```
+/// let x = vec![0.1, 0.2, 0.3, 0.4];
+/// let f0 = vec![100.0, 110.0];
+/// let freqs = vec![0.0, 100.0, 200.0, 300.0];
+/// let harmonics = vec![1.0, 2.0];
+/// let result = f0_harmonics(&x, &f0, &freqs, &harmonics);
+/// ```
 pub fn f0_harmonics(x: &[f32], f0: &[f32], freqs: &[f32], harmonics: &[f32]) -> Array2<f32> {
     assert_eq!(x.len(), freqs.len(), "x and freqs must have the same length");
     let n_frames = f0.len();
@@ -86,6 +161,33 @@ pub fn f0_harmonics(x: &[f32], f0: &[f32], freqs: &[f32], harmonics: &[f32]) -> 
     result
 }
 
+/// Performs phase vocoding for time stretching or compression.
+///
+/// Modifies the time scale of a complex spectrogram while preserving frequency content.
+///
+/// # Arguments
+/// * `D` - Input complex spectrogram (n_bins × n_frames)
+/// * `rate` - Time stretching factor (>1 for stretching, <1 for compression)
+/// * `hop_length` - Optional hop length between frames (defaults to n_fft/4)
+/// * `n_fft` - Optional FFT size (defaults to derived from spectrogram size)
+///
+/// # Returns
+/// Returns a 2D array of complex values with adjusted frame count based on rate.
+///
+/// # Examples
+/// ```
+/// use ndarray::Array2;
+/// use num_complex::Complex;
+/// let D = Array2::from_shape_vec((3, 4), vec![
+///     Complex::new(1.0, 0.0), Complex::new(2.0, 0.0),
+///     Complex::new(3.0, 0.0), Complex::new(4.0, 0.0),
+///     Complex::new(5.0, 0.0), Complex::new(6.0, 0.0),
+///     Complex::new(7.0, 0.0), Complex::new(8.0, 0.0),
+///     Complex::new(9.0, 0.0), Complex::new(10.0, 0.0),
+///     Complex::new(11.0, 0.0), Complex::new(12.0, 0.0),
+/// ]).unwrap();
+/// let result = phase_vocoder(&D, 2.0, None, None);
+/// ```
 pub fn phase_vocoder(D: &Array2<Complex<f32>>, rate: f32, hop_length: Option<usize>, n_fft: Option<usize>) -> Array2<Complex<f32>> {
     let n = n_fft.unwrap_or((D.shape()[0] - 1) * 2);
     let hop = hop_length.unwrap_or(n / 4);

@@ -3,6 +3,28 @@ use crate::signal_processing::time_frequency::stft;
 use crate::fft_frequencies;
 use crate::AudioError;
 
+/// Pitch detection using the pYIN algorithm (probabilistic YIN).
+///
+/// # Arguments
+/// * `y` - Audio time series
+/// * `fmin` - Minimum frequency in Hz
+/// * `fmax` - Maximum frequency in Hz
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `frame_length` - Optional frame length (defaults to 2048)
+///
+/// # Returns
+/// Returns a `Result` containing a `Vec<f32>` of pitch estimates in Hz per frame,
+/// or an `AudioError` if inputs are invalid or insufficient.
+///
+/// # Errors
+/// * `InvalidInput` - If frequency range is invalid (fmin >= fmax or out of Nyquist bounds).
+/// * `InsufficientData` - If signal length is shorter than frame length.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let pitches = pyin(&y, 50.0, 500.0, None, None).unwrap();
+/// ```
 pub fn pyin(
     y: &[f32],
     fmin: f32,
@@ -72,6 +94,28 @@ pub fn pyin(
     Ok(pitches)
 }
 
+/// Pitch detection using the YIN algorithm.
+///
+/// # Arguments
+/// * `y` - Audio time series
+/// * `fmin` - Minimum frequency in Hz
+/// * `fmax` - Maximum frequency in Hz
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `frame_length` - Optional frame length (defaults to 2048)
+///
+/// # Returns
+/// Returns a `Result` containing a `Vec<f32>` of pitch estimates in Hz per frame,
+/// or an `AudioError` if inputs are invalid or insufficient.
+///
+/// # Errors
+/// * `InvalidInput` - If frequency range is invalid (fmin >= fmax or out of Nyquist bounds).
+/// * `InsufficientData` - If signal length is shorter than frame length.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let pitches = yin(&y, 50.0, 500.0, None, None).unwrap();
+/// ```
 pub fn yin(
     y: &[f32],
     fmin: f32,
@@ -132,6 +176,28 @@ pub fn yin(
     Ok(pitches)
 }
 
+/// Estimates tuning deviation in cents from a reference pitch.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed magnitude spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+///
+/// # Returns
+/// Returns a `Result` containing the tuning deviation in cents,
+/// or an `AudioError` if computation fails or inputs are invalid.
+///
+/// # Errors
+/// * `InsufficientData` - If signal length is shorter than n_fft.
+/// * `InvalidInput` - If neither `y` nor `S` is provided.
+/// * `ComputationFailed` - If STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let tuning = estimate_tuning(Some(&y), None, None, None).unwrap();
+/// ```
 pub fn estimate_tuning(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -175,6 +241,24 @@ pub fn estimate_tuning(
     Ok(if total_weight > 1e-6 { total_deviation / total_weight } else { 0.0 })
 }
 
+/// Estimates tuning deviation from a list of frequencies.
+///
+/// # Arguments
+/// * `frequencies` - Array of pitch frequencies in Hz
+/// * `resolution` - Optional tuning resolution in cents (defaults to 1.0)
+///
+/// # Returns
+/// Returns a `Result` containing the average tuning deviation in cents,
+/// or an `AudioError` if resolution is invalid.
+///
+/// # Errors
+/// * `InvalidInput` - If resolution is non-positive.
+///
+/// # Examples
+/// ```
+/// let freqs = vec![440.0, 442.0, 438.0];
+/// let tuning = pitch_tuning(&freqs, None).unwrap();
+/// ```
 pub fn pitch_tuning(
     frequencies: &[f32],
     resolution: Option<f32>,
@@ -199,6 +283,31 @@ pub fn pitch_tuning(
     Ok(total_deviation / valid_freqs.len() as f32)
 }
 
+/// Tracks pitch using peak interpolation in a spectrogram.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100 Hz)
+/// * `S` - Optional pre-computed magnitude spectrogram
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to n_fft/4)
+///
+/// # Returns
+/// Returns a `Result` containing a tuple `(pitches, magnitudes)` where:
+/// - `pitches` is a 2D array of pitch estimates in Hz
+/// - `magnitudes` is a 2D array of corresponding peak magnitudes
+/// or an `AudioError` if computation fails or inputs are invalid.
+///
+/// # Errors
+/// * `InsufficientData` - If signal length is shorter than n_fft.
+/// * `InvalidInput` - If neither `y` nor `S` is provided.
+/// * `ComputationFailed` - If STFT or frequency bin computation fails.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let (pitches, mags) = piptrack(Some(&y), None, None, None, None).unwrap();
+/// ```
 pub fn piptrack(
     y: Option<&[f32]>,
     sr: Option<u32>,

@@ -1,5 +1,22 @@
 use ndarray::{Array1, Array2, Axis};
 
+/// Computes delta coefficients of arbitrary order from a 2D array.
+///
+/// # Arguments
+/// * `data` - Input 2D array (typically features × time)
+/// * `width` - Optional window width for delta computation (defaults to 9)
+/// * `order` - Optional order of delta (defaults to 1)
+/// * `axis` - Optional axis along which to compute deltas (-1 for time, 0 for features; defaults to -1)
+///
+/// # Returns
+/// Returns a 2D array of the same shape as `data` containing the delta coefficients.
+///
+/// # Examples
+/// ```
+/// use ndarray::Array2;
+/// let data = Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+/// let delta = delta(&data, None, None, None);
+/// ```
 pub fn delta(
     data: &Array2<f32>,
     width: Option<usize>,
@@ -32,6 +49,22 @@ pub fn delta(
     result
 }
 
+/// Stacks delayed copies of a 2D array for temporal context.
+///
+/// # Arguments
+/// * `data` - Input 2D array (features × time)
+/// * `n_steps` - Optional number of delayed copies (defaults to 2)
+/// * `delay` - Optional delay between steps in frames (defaults to 1)
+///
+/// # Returns
+/// Returns a 2D array of shape `(n_features * n_steps, n_frames)` containing stacked features.
+///
+/// # Examples
+/// ```
+/// use ndarray::Array2;
+/// let data = Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+/// let stacked = stack_memory(&data, None, None);
+/// ```
 pub fn stack_memory(
     data: &Array2<f32>,
     n_steps: Option<usize>,
@@ -54,6 +87,27 @@ pub fn stack_memory(
     stacked
 }
 
+/// Computes temporal kurtosis from audio or spectrogram.
+///
+/// Kurtosis measures the "tailedness" of the distribution in each frame.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `S` - Optional spectrogram (features × time)
+/// * `frame_length` - Optional frame length for audio (defaults to 2048)
+/// * `hop_length` - Optional hop length for audio (defaults to frame_length/4)
+///
+/// # Returns
+/// Returns a 1D array containing kurtosis values for each frame.
+///
+/// # Panics
+/// Panics if neither `y` nor `S` is provided, or if both are provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4, 0.5];
+/// let kurtosis = temporal_kurtosis(Some(&y), None, None, None);
+/// ```
 pub fn temporal_kurtosis(
     y: Option<&[f32]>,
     S: Option<&Array2<f32>>,
@@ -86,6 +140,23 @@ pub fn temporal_kurtosis(
     }
 }
 
+/// Computes zero-crossing rate from an audio signal.
+///
+/// Measures the rate at which the signal changes sign in each frame.
+///
+/// # Arguments
+/// * `y` - Input audio time series
+/// * `frame_length` - Optional frame length (defaults to 2048)
+/// * `hop_length` - Optional hop length (defaults to frame_length/4)
+///
+/// # Returns
+/// Returns a 1D array containing zero-crossing rates for each frame.
+///
+/// # Examples
+/// ```
+/// let y = vec![1.0, -1.0, 2.0, -2.0, 1.0];
+/// let zcr = zero_crossing_rate(&y, None, None);
+/// ```
 pub fn zero_crossing_rate(
     y: &[f32],
     frame_length: Option<usize>,

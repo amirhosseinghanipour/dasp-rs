@@ -1,6 +1,20 @@
 use ndarray::Array1;
 use crate::utils::notation;
 
+/// Converts frequencies in Hz to Western musical note names.
+///
+/// # Arguments
+/// * `frequencies` - Array of frequencies in Hz
+///
+/// # Returns
+/// Returns a `Vec<String>` containing note names (e.g., "C4", "G#5").
+///
+/// # Examples
+/// ```
+/// let freqs = vec![261.63, 329.63];
+/// let notes = hz_to_note(&freqs);
+/// assert_eq!(notes, vec!["C4", "E4"]);
+/// ```
 pub fn hz_to_note(frequencies: &[f32]) -> Vec<String> {
     frequencies.iter().map(|&f| {
         let midi = hz_to_midi(&[f])[0];
@@ -8,10 +22,40 @@ pub fn hz_to_note(frequencies: &[f32]) -> Vec<String> {
     }).collect()
 }
 
+/// Converts frequencies in Hz to MIDI note numbers.
+///
+/// # Arguments
+/// * `frequencies` - Array of frequencies in Hz
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing MIDI note numbers (A4 = 440 Hz = MIDI 69).
+///
+/// # Examples
+/// ```
+/// let freqs = vec![440.0];
+/// let midi = hz_to_midi(&freqs);
+/// assert_eq!(midi, vec![69.0]);
+/// ```
 pub fn hz_to_midi(frequencies: &[f32]) -> Vec<f32> {
     frequencies.iter().map(|&f| 12.0 * (f / 440.0).log2() + 69.0).collect()
 }
 
+/// Converts frequencies in Hz to Hindustani svara notation.
+///
+/// # Arguments
+/// * `frequencies` - Array of frequencies in Hz
+/// * `Sa` - Frequency of the tonic (Sa) in Hz
+/// * `abbr` - Optional flag for abbreviated notation (defaults to false)
+///
+/// # Returns
+/// Returns a `Vec<String>` containing Hindustani svara names (e.g., "S", "R1" or "Shadjam", "Shuddha Rishabham").
+///
+/// # Examples
+/// ```
+/// let freqs = vec![261.63, 293.66];
+/// let svaras = hz_to_svara_h(&freqs, 261.63, Some(true));
+/// assert_eq!(svaras, vec!["S", "R2"]);
+/// ```
 pub fn hz_to_svara_h(frequencies: &[f32], Sa: f32, abbr: Option<bool>) -> Vec<String> {
     let abbr = abbr.unwrap_or(false);
     let midi_Sa = hz_to_midi(&[Sa])[0];
@@ -30,6 +74,22 @@ pub fn hz_to_svara_h(frequencies: &[f32], Sa: f32, abbr: Option<bool>) -> Vec<St
     }).collect()
 }
 
+/// Converts frequencies in Hz to Carnatic svara notation based on a melakarta raga.
+///
+/// # Arguments
+/// * `frequencies` - Array of frequencies in Hz
+/// * `Sa` - Frequency of the tonic (Sa) in Hz
+/// * `mela` - Optional melakarta raga index (1-72, defaults to 29, Dheerashankarabharanam)
+///
+/// # Returns
+/// Returns a `Vec<String>` containing Carnatic svara names (e.g., "S", "R2").
+///
+/// # Examples
+/// ```
+/// let freqs = vec![261.63, 293.66];
+/// let svaras = hz_to_svara_c(&freqs, 261.63, None);
+/// assert_eq!(svaras, vec!["S", "R2"]);
+/// ```
 pub fn hz_to_svara_c(frequencies: &[f32], Sa: f32, mela: Option<usize>) -> Vec<String> {
     let mela = mela.unwrap_or(29);
     let degrees = notation::mela_to_degrees(mela);
@@ -48,6 +108,22 @@ pub fn hz_to_svara_c(frequencies: &[f32], Sa: f32, mela: Option<usize>) -> Vec<S
     }).collect()
 }
 
+/// Converts frequencies in Hz to Functional Just System (FJS) notation.
+///
+/// # Arguments
+/// * `frequencies` - Array of frequencies in Hz
+/// * `fmin` - Optional minimum frequency (defaults to 16.35 Hz, C0)
+/// * `unison` - Optional unison interval ratio (defaults to 1.0)
+///
+/// # Returns
+/// Returns a `Vec<String>` containing FJS note names (e.g., "C4 1/1").
+///
+/// # Examples
+/// ```
+/// let freqs = vec![261.63];
+/// let fjs = hz_to_fjs(&freqs, None, None);
+/// assert_eq!(fjs, vec!["C4 1/1"]);
+/// ```
 pub fn hz_to_fjs(frequencies: &[f32], fmin: Option<f32>, unison: Option<f32>) -> Vec<String> {
     let fmin = fmin.unwrap_or(16.35);
     let unison = unison.unwrap_or(1.0);
@@ -59,10 +135,41 @@ pub fn hz_to_fjs(frequencies: &[f32], fmin: Option<f32>, unison: Option<f32>) ->
     }).collect()
 }
 
+/// Converts MIDI note numbers to frequencies in Hz.
+///
+/// # Arguments
+/// * `notes` - Array of MIDI note numbers
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing frequencies in Hz (A4 = MIDI 69 = 440 Hz).
+///
+/// # Examples
+/// ```
+/// let midi = vec![69.0];
+/// let freqs = midi_to_hz(&midi);
+/// assert_eq!(freqs, vec![440.0]);
+/// ```
 pub fn midi_to_hz(notes: &[f32]) -> Vec<f32> {
     notes.iter().map(|&n| 440.0 * 2.0f32.powf((n - 69.0) / 12.0)).collect()
 }
 
+/// Converts MIDI note numbers to Western musical note names.
+///
+/// # Arguments
+/// * `midi` - Array of MIDI note numbers
+/// * `octave` - Optional flag to include octave number (defaults to true)
+/// * `_cents` - Optional flag for cents (unused, defaults to None)
+/// * `_key` - Optional key signature (unused, defaults to None)
+///
+/// # Returns
+/// Returns a `Vec<String>` containing note names (e.g., "C4", "G#").
+///
+/// # Examples
+/// ```
+/// let midi = vec![60.0, 61.0];
+/// let notes = midi_to_note(&midi, None, None, None);
+/// assert_eq!(notes, vec!["C4", "C#4"]);
+/// ```
 pub fn midi_to_note(midi: &[f32], octave: Option<bool>, _cents: Option<bool>, _key: Option<&str>) -> Vec<String> {
     let note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     midi.iter().map(|&m| {
@@ -72,6 +179,23 @@ pub fn midi_to_note(midi: &[f32], octave: Option<bool>, _cents: Option<bool>, _k
     }).collect()
 }
 
+/// Converts MIDI note numbers to Hindustani svara notation.
+///
+/// # Arguments
+/// * `midi` - Array of MIDI note numbers
+/// * `Sa` - Frequency of the tonic (Sa) in Hz
+/// * `abbr` - Optional flag for abbreviated notation (defaults to false)
+/// * `octave` - Optional flag to include octave number (defaults to false)
+///
+/// # Returns
+/// Returns a `Vec<String>` containing Hindustani svara names with optional octave.
+///
+/// # Examples
+/// ```
+/// let midi = vec![60.0, 62.0];
+/// let svaras = midi_to_svara_h(&midi, 261.63, Some(true), None);
+/// assert_eq!(svaras, vec!["S", "R2"]);
+/// ```
 pub fn midi_to_svara_h(midi: &[f32], Sa: f32, abbr: Option<bool>, octave: Option<bool>) -> Vec<String> {
     let abbr = abbr.unwrap_or(false);
     let octave = octave.unwrap_or(false);
@@ -91,6 +215,23 @@ pub fn midi_to_svara_h(midi: &[f32], Sa: f32, abbr: Option<bool>, octave: Option
     }).collect()
 }
 
+/// Converts MIDI note numbers to Carnatic svara notation based on a melakarta raga.
+///
+/// # Arguments
+/// * `midi` - Array of MIDI note numbers
+/// * `Sa` - Frequency of the tonic (Sa) in Hz
+/// * `mela` - Optional melakarta raga index (1-72, defaults to 29)
+/// * `abbr` - Optional flag for abbreviated notation (defaults to false)
+///
+/// # Returns
+/// Returns a `Vec<String>` containing Carnatic svara names.
+///
+/// # Examples
+/// ```
+/// let midi = vec![60.0, 62.0];
+/// let svaras = midi_to_svara_c(&midi, 261.63, None, Some(true));
+/// assert_eq!(svaras, vec!["S", "R2"]);
+/// ```
 pub fn midi_to_svara_c(midi: &[f32], Sa: f32, mela: Option<usize>, abbr: Option<bool>) -> Vec<String> {
     let mela = mela.unwrap_or(29);
     let abbr = abbr.unwrap_or(false);
@@ -109,6 +250,20 @@ pub fn midi_to_svara_c(midi: &[f32], Sa: f32, mela: Option<usize>, abbr: Option<
     }).collect()
 }
 
+/// Converts note names to frequencies in Hz.
+///
+/// # Arguments
+/// * `note` - Array of note names (e.g., "C4", "G#5")
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing frequencies in Hz.
+///
+/// # Examples
+/// ```
+/// let notes = vec!["C4", "E4"];
+/// let freqs = note_to_hz(&notes);
+/// assert!(freqs[0] > 261.0 && freqs[0] < 262.0);
+/// ```
 pub fn note_to_hz(note: &[&str]) -> Vec<f32> {
     note.iter().map(|&n| {
         let midi = note_to_midi(&[n], None)[0];
@@ -116,6 +271,21 @@ pub fn note_to_hz(note: &[&str]) -> Vec<f32> {
     }).collect()
 }
 
+/// Converts note names to MIDI note numbers.
+///
+/// # Arguments
+/// * `note` - Array of note names (e.g., "C4", "G#5")
+/// * `round_midi` - Optional flag to round MIDI numbers (defaults to true)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing MIDI note numbers.
+///
+/// # Examples
+/// ```
+/// let notes = vec!["C4", "C#4"];
+/// let midi = note_to_midi(&notes, None);
+/// assert_eq!(midi, vec![60.0, 61.0]);
+/// ```
 pub fn note_to_midi(note: &[&str], round_midi: Option<bool>) -> Vec<f32> {
     let note_map = [("C", 0), ("C#", 1), ("Db", 1), ("D", 2), ("D#", 3), ("Eb", 3), ("E", 4), ("F", 5), ("F#", 6), ("Gb", 6), ("G", 7), ("G#", 8), ("Ab", 8), ("A", 9), ("A#", 10), ("Bb", 10), ("B", 11)];
     note.iter().map(|&n| {
@@ -127,16 +297,63 @@ pub fn note_to_midi(note: &[&str], round_midi: Option<bool>) -> Vec<f32> {
     }).collect()
 }
 
+/// Converts note names to Hindustani svara notation.
+///
+/// # Arguments
+/// * `notes` - Array of note names (e.g., "C4", "D4")
+/// * `Sa` - Frequency of the tonic (Sa) in Hz
+/// * `abbr` - Optional flag for abbreviated notation (defaults to false)
+///
+/// # Returns
+/// Returns a `Vec<String>` containing Hindustani svara names.
+///
+/// # Examples
+/// ```
+/// let notes = vec!["C4", "D4"];
+/// let svaras = note_to_svara_h(&notes, 261.63, Some(true));
+/// assert_eq!(svaras, vec!["S", "R2"]);
+/// ```
 pub fn note_to_svara_h(notes: &[&str], Sa: f32, abbr: Option<bool>) -> Vec<String> {
     let midi = note_to_midi(notes, Some(true));
     hz_to_svara_h(&midi_to_hz(&midi), Sa, abbr)
 }
 
+/// Converts note names to Carnatic svara notation.
+///
+/// # Arguments
+/// * `notes` - Array of note names (e.g., "C4", "D4")
+/// * `Sa` - Frequency of the tonic (Sa) in Hz
+/// * `mela` - Optional melakarta raga index (1-72, defaults to 29)
+/// * `abbr` - Optional flag for abbreviated notation (defaults to false)
+///
+/// # Returns
+/// Returns a `Vec<String>` containing Carnatic svara names.
+///
+/// # Examples
+/// ```
+/// let notes = vec!["C4", "D4"];
+/// let svaras = note_to_svara_c(&notes, 261.63, None, Some(true));
+/// assert_eq!(svaras, vec!["S", "R2"]);
+/// ```
 pub fn note_to_svara_c(notes: &[&str], Sa: f32, mela: Option<usize>, abbr: Option<bool>) -> Vec<String> {
     let midi = note_to_midi(notes, Some(true));
     hz_to_svara_c(&midi_to_hz(&midi), Sa, mela)
 }
 
+/// Converts frequencies in Hz to mel scale.
+///
+/// # Arguments
+/// * `frequencies` - Array of frequencies in Hz
+/// * `htk` - Optional flag for HTK formula (defaults to false)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing mel values.
+///
+/// # Examples
+/// ```
+/// let freqs = vec![440.0];
+/// let mels = hz_to_mel(&freqs, None);
+/// ```
 pub fn hz_to_mel(frequencies: &[f32], htk: Option<bool>) -> Vec<f32> {
     if htk.unwrap_or(false) {
         frequencies.iter().map(|&f| 2595.0 * (1.0 + f / 700.0).log10()).collect()
@@ -145,11 +362,40 @@ pub fn hz_to_mel(frequencies: &[f32], htk: Option<bool>) -> Vec<f32> {
     }
 }
 
+/// Converts frequencies in Hz to octave numbers.
+///
+/// # Arguments
+/// * `frequencies` - Array of frequencies in Hz
+/// * `tuning` - Optional tuning adjustment in semitones (defaults to 0.0)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing octave numbers (A4 = 440 Hz = octave 4).
+///
+/// # Examples
+/// ```
+/// let freqs = vec![440.0];
+/// let octs = hz_to_octs(&freqs, None);
+/// assert_eq!(octs, vec![4.0]);
+/// ```
 pub fn hz_to_octs(frequencies: &[f32], tuning: Option<f32>) -> Vec<f32> {
     let tune = tuning.unwrap_or(0.0);
     frequencies.iter().map(|&f| (f / (440.0 * 2.0f32.powf(tune / 12.0))).log2() + 4.0).collect()
 }
 
+/// Converts mel values to frequencies in Hz.
+///
+/// # Arguments
+/// * `mels` - Array of mel values
+/// * `htk` - Optional flag for HTK formula (defaults to false)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing frequencies in Hz.
+///
+/// # Examples
+/// ```
+/// let mels = vec![1125.0];
+/// let freqs = mel_to_hz(&mels, None);
+/// ```
 pub fn mel_to_hz(mels: &[f32], htk: Option<bool>) -> Vec<f32> {
     if htk.unwrap_or(false) {
         mels.iter().map(|&m| 700.0 * (10.0f32.powf(m / 2595.0) - 1.0)).collect()
@@ -158,31 +404,117 @@ pub fn mel_to_hz(mels: &[f32], htk: Option<bool>) -> Vec<f32> {
     }
 }
 
+/// Converts octave numbers to frequencies in Hz.
+///
+/// # Arguments
+/// * `octs` - Array of octave numbers
+/// * `tuning` - Optional tuning adjustment in semitones (defaults to 0.0)
+/// * `_bins_per_octave` - Optional bins per octave (unused, defaults to None)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing frequencies in Hz.
+///
+/// # Examples
+/// ```
+/// let octs = vec![4.0];
+/// let freqs = octs_to_hz(&octs, None, None);
+/// assert_eq!(freqs, vec![440.0]);
+/// ```
 pub fn octs_to_hz(octs: &[f32], tuning: Option<f32>, _bins_per_octave: Option<usize>) -> Vec<f32> {
     let tune = tuning.unwrap_or(0.0);
     octs.iter().map(|&o| 440.0 * 2.0f32.powf(o - 4.0 + tune / 12.0)).collect()
 }
 
+/// Converts an A4 frequency to a tuning offset in semitones.
+///
+/// # Arguments
+/// * `A4` - Frequency of A4 in Hz
+/// * `_bins_per_octave` - Optional bins per octave (unused, defaults to None)
+///
+/// # Returns
+/// Returns a `f32` representing the tuning offset from 440 Hz in semitones.
+///
+/// # Examples
+/// ```
+/// let tuning = A4_to_tuning(432.0, None);
+/// assert!(tuning < 0.0);
+/// ```
 pub fn A4_to_tuning(A4: f32, _bins_per_octave: Option<usize>) -> f32 {
     12.0 * (A4 / 440.0).log2()
 }
 
+/// Converts a tuning offset in semitones to an A4 frequency.
+///
+/// # Arguments
+/// * `tuning` - Tuning offset in semitones
+/// * `_bins_per_octave` - Optional bins per octave (unused, defaults to None)
+///
+/// # Returns
+/// Returns a `f32` representing the A4 frequency in Hz.
+///
+/// # Examples
+/// ```
+/// let A4 = tuning_to_A4(-0.317667, None);
+/// assert!(A4 > 431.0 && A4 < 433.0);
+/// ```
 pub fn tuning_to_A4(tuning: f32, _bins_per_octave: Option<usize>) -> f32 {
     440.0 * 2.0f32.powf(tuning / 12.0)
 }
 
+/// Generates FFT frequency bins.
+///
+/// # Arguments
+/// * `sr` - Optional sample rate in Hz (defaults to 44100)
+/// * `n_fft` - Optional FFT size (defaults to 2048)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing frequency bins from 0 to Nyquist (sr/2).
+///
+/// # Examples
+/// ```
+/// let freqs = fft_frequencies(None, Some(4));
+/// assert_eq!(freqs, vec![0.0, 11025.0, 22050.0]);
+/// ```
 pub fn fft_frequencies(sr: Option<u32>, n_fft: Option<usize>) -> Vec<f32> {
     let sample_rate = sr.unwrap_or(44100);
     let n = n_fft.unwrap_or(2048);
     Array1::linspace(0.0, sample_rate as f32 / 2.0, n / 2 + 1).to_vec()
 }
 
+/// Generates Constant-Q Transform (CQT) frequency bins.
+///
+/// # Arguments
+/// * `n_bins` - Number of frequency bins
+/// * `fmin` - Optional minimum frequency in Hz (defaults to 32.70, C1)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing CQT frequency bins.
+///
+/// # Examples
+/// ```
+/// let freqs = cqt_frequencies(3, None);
+/// ```
 pub fn cqt_frequencies(n_bins: usize, fmin: Option<f32>) -> Vec<f32> {
     let fmin = fmin.unwrap_or(32.70);
     let bins_per_octave = 12;
     (0..n_bins).map(|k| fmin * 2.0f32.powf(k as f32 / bins_per_octave as f32)).collect()
 }
 
+/// Generates mel-scale frequency bins.
+///
+/// # Arguments
+/// * `n_mels` - Optional number of mel bins (defaults to 128)
+/// * `fmin` - Optional minimum frequency in Hz (defaults to 0.0)
+/// * `fmax` - Optional maximum frequency in Hz (defaults to 11025.0)
+/// * `_htk` - Optional flag for HTK formula (unused, defaults to None)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing mel-scale frequency bins.
+///
+/// # Examples
+/// ```
+/// let freqs = mel_frequencies(Some(3), None, None, None);
+/// ```
 pub fn mel_frequencies(n_mels: Option<usize>, fmin: Option<f32>, fmax: Option<f32>, _htk: Option<bool>) -> Vec<f32> {
     let n = n_mels.unwrap_or(128);
     let min_freq = fmin.unwrap_or(0.0);
@@ -193,6 +525,20 @@ pub fn mel_frequencies(n_mels: Option<usize>, fmin: Option<f32>, fmax: Option<f3
     mel_to_hz(&mel_steps.to_vec(), None)
 }
 
+/// Generates tempo-related frequency bins.
+///
+/// # Arguments
+/// * `n_bins` - Number of frequency bins
+/// * `hop_length` - Optional hop length in samples (defaults to 512)
+/// * `sr` - Optional sample rate in Hz (defaults to 44100)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing tempo frequencies in beats per minute (BPM).
+///
+/// # Examples
+/// ```
+/// let freqs = tempo_frequencies(3, None, None);
+/// ```
 pub fn tempo_frequencies(n_bins: usize, hop_length: Option<usize>, sr: Option<u32>) -> Vec<f32> {
     let sr = sr.unwrap_or(44100);
     let hop = hop_length.unwrap_or(512);
@@ -200,6 +546,18 @@ pub fn tempo_frequencies(n_bins: usize, hop_length: Option<usize>, sr: Option<u3
     Array1::linspace(0.0, frame_rate / 2.0, n_bins).mapv(|f| f * 60.0).to_vec()
 }
 
+/// Generates Fourier tempo frequency bins.
+///
+/// # Arguments
+/// * `sr` - Optional sample rate in Hz (defaults to 44100)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing tempo frequencies in BPM with fixed parameters.
+///
+/// # Examples
+/// ```
+/// let freqs = fourier_tempo_frequencies(None);
+/// ```
 pub fn fourier_tempo_frequencies(sr: Option<u32>) -> Vec<f32> {
     let sr = sr.unwrap_or(44100);
     let hop_length = 512;

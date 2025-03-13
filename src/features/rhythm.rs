@@ -1,6 +1,25 @@
 use ndarray::{Array1, Array2, Axis};
 use crate::signal_processing::time_frequency::stft;
 
+/// Estimates the tempo (beats per minute) from audio or onset envelope.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100)
+/// * `onset_envelope` - Optional pre-computed onset strength envelope
+/// * `hop_length` - Optional hop length in samples (defaults to 512)
+///
+/// # Returns
+/// Returns a single `f32` value representing the estimated tempo in BPM.
+///
+/// # Panics
+/// Panics if `y` is None and `onset_envelope` is None, or if STFT computation fails when `y` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let bpm = tempo(Some(&y), None, None, None);
+/// ```
 pub fn tempo(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -31,6 +50,26 @@ pub fn tempo(
     }).sum::<f32>() / tempogram.shape()[1] as f32
 }
 
+/// Computes a tempogram (local autocorrelation of onset strength).
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100)
+/// * `onset_envelope` - Optional pre-computed onset strength envelope
+/// * `hop_length` - Optional hop length in samples (defaults to 512)
+/// * `win_length` - Optional window length for autocorrelation (defaults to 384)
+///
+/// # Returns
+/// Returns a 2D array of shape `(win_length/2 + 1, n_frames)` representing the tempogram.
+///
+/// # Panics
+/// Panics if `y` is None and `onset_envelope` is None, or if STFT computation fails when `y` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let tgram = tempogram(Some(&y), None, None, None, None);
+/// ```
 pub fn tempogram(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -65,6 +104,26 @@ pub fn tempogram(
     tempogram
 }
 
+/// Computes a tempogram with harmonic ratio analysis.
+///
+/// # Arguments
+/// * `y` - Optional audio time series
+/// * `sr` - Optional sample rate (defaults to 44100)
+/// * `onset_envelope` - Optional pre-computed onset strength envelope
+/// * `hop_length` - Optional hop length in samples (defaults to 512)
+/// * `ratios` - Optional array of tempo ratios to analyze (defaults to [2.0, 3.0, 4.0])
+///
+/// # Returns
+/// Returns a 2D array of shape `(n_ratios, n_frames)` representing the ratio tempogram.
+///
+/// # Panics
+/// Panics if `y` is None and `onset_envelope` is None, or if STFT computation fails when `y` is provided.
+///
+/// # Examples
+/// ```
+/// let y = vec![0.1, 0.2, 0.3, 0.4];
+/// let ratio_tgram = tempogram_ratio(Some(&y), None, None, None, None);
+/// ```
 pub fn tempogram_ratio(
     y: Option<&[f32]>,
     sr: Option<u32>,
@@ -90,4 +149,3 @@ pub fn tempogram_ratio(
     }
     ratio_map
 }
-

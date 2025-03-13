@@ -4,7 +4,29 @@ use ndarray::{Array1, Array2, s};
 use crate::{AudioError, utils::frequency::fft_frequencies};
 use std::f32::consts::{PI, SQRT_2};
 
-pub fn stft(y: &[f32], n_fft: Option<usize>, hop_length: Option<usize>, win_length: Option<usize>) -> Result<Array2<Complex<f32>>, AudioError> {
+/// Computes the Short-Time Fourier Transform (STFT) of a signal.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length in samples (defaults to n_fft/4, minimum 1)
+/// * `win_length` - Optional window length in samples (defaults to n_fft)
+///
+/// # Returns
+/// Returns a `Result` containing an `Array2<Complex<f32>>` representing the STFT spectrogram,
+/// with shape `(n_fft/2 + 1, n_frames)`, or an `AudioError` if array shaping fails.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0, 2.0, 3.0, 4.0];
+/// let spectrogram = stft(&signal, None, None, None).unwrap();
+/// ```
+pub fn stft(
+    y: &[f32],
+    n_fft: Option<usize>,
+    hop_length: Option<usize>,
+    win_length: Option<usize>,
+) -> Result<Array2<Complex<f32>>, AudioError> {
     let n = n_fft.unwrap_or(2048);
     let hop = hop_length.unwrap_or(n / 4).max(1);
     let win = win_length.unwrap_or(n);
@@ -35,7 +57,29 @@ pub fn stft(y: &[f32], n_fft: Option<usize>, hop_length: Option<usize>, win_leng
     Ok(Array2::from_shape_vec((n / 2 + 1, n_frames), spectrogram.into_iter().flat_map(|v| v.into_iter().take(n / 2 + 1)).collect())?)
 }
 
-pub fn istft(stft_matrix: &Array2<Complex<f32>>, hop_length: Option<usize>, win_length: Option<usize>, length: Option<usize>) -> Vec<f32> {
+/// Computes the inverse Short-Time Fourier Transform (iSTFT) to reconstruct a signal.
+///
+/// # Arguments
+/// * `stft_matrix` - STFT spectrogram as an `Array2<Complex<f32>>`
+/// * `hop_length` - Optional hop length in samples (defaults to n_fft/4, minimum 1)
+/// * `win_length` - Optional window length in samples (defaults to n_fft)
+/// * `length` - Optional output signal length in samples (defaults to maximum possible length)
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing the reconstructed time-domain signal.
+///
+/// # Examples
+/// ```
+/// use ndarray::arr2;
+/// let stft_data = arr2(&[[Complex::new(1.0, 0.0)], [Complex::new(0.5, 0.0)]]);
+/// let signal = istft(&stft_data, None, None, None);
+/// ```
+pub fn istft(
+    stft_matrix: &Array2<Complex<f32>>,
+    hop_length: Option<usize>,
+    win_length: Option<usize>,
+    length: Option<usize>,
+) -> Vec<f32> {
     let n_fft = (stft_matrix.shape()[0] - 1) * 2;
     let hop = hop_length.unwrap_or(n_fft / 4).max(1);
     let win = win_length.unwrap_or(n_fft);
@@ -72,14 +116,59 @@ pub fn istft(stft_matrix: &Array2<Complex<f32>>, hop_length: Option<usize>, win_
     signal
 }
 
+/// Computes the Hamming window value at a given sample index.
+///
+/// # Arguments
+/// * `n` - Sample index
+/// * `win_length` - Total window length
+///
+/// # Returns
+/// Returns a `f32` representing the Hamming window coefficient.
+///
+/// # Examples
+/// ```
+/// let value = hamming(0, 10);
+/// assert!(value > 0.0 && value <= 1.0);
+/// ```
 fn hamming(n: usize, win_length: usize) -> f32 {
     0.54 - 0.46 * (2.0 * std::f32::consts::PI * n as f32 / (win_length - 1) as f32).cos()
 }
 
+/// Generates a Hamming window vector.
+///
+/// # Arguments
+/// * `win_length` - Length of the window
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing the Hamming window coefficients.
+///
+/// # Examples
+/// ```
+/// let window = hamming_vec(5);
+/// assert_eq!(window.len(), 5);
+/// ```
 fn hamming_vec(win_length: usize) -> Vec<f32> {
     (0..win_length).map(|n| hamming(n, win_length)).collect()
 }
 
+/// Separates magnitude and phase from a complex spectrogram.
+///
+/// # Arguments
+/// * `D` - Input spectrogram as an `Array2<Complex<f32>>`
+/// * `power` - Optional power to raise the magnitude (defaults to 1.0)
+///
+/// # Returns
+/// Returns a tuple `(magnitude, phase)` where:
+/// - `magnitude` is an `Array2<f32>` of magnitude values
+/// - `phase` is an `Array2<Complex<f32>>` of unit-magnitude phase values
+///
+/// # Examples
+/// ```
+/// use ndarray::arr2;
+/// let spectrogram = arr2(&[[Complex::new(3.0, 4.0)]]);
+/// let (mag, phase) = magphase(&spectrogram, None);
+/// assert_eq!(mag[[0, 0]], 5.0); // sqrt(3^2 + 4^2)
+/// ```
 pub fn magphase(D: &Array2<Complex<f32>>, power: Option<f32>) -> (Array2<f32>, Array2<Complex<f32>>) {
     let power_val = power.unwrap_or(1.0);
     let magnitude = D.mapv(|x| x.norm().powf(power_val));
@@ -87,6 +176,26 @@ pub fn magphase(D: &Array2<Complex<f32>>, power: Option<f32>) -> (Array2<f32>, A
     (magnitude, phase)
 }
 
+/// Computes a reassigned spectrogram for improved time-frequency resolution.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `sr` - Optional sample rate in Hz (defaults to 44100)
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+///
+/// # Returns
+/// Returns a `Result` containing an `Array2<f32>` representing the reassigned spectrogram,
+/// or an `AudioError` if computation fails.
+///
+/// # Errors
+/// * `AudioError::InsufficientData` - If signal length is less than `n_fft`.
+/// * `AudioError::ComputationFailed` - If STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0; 4096];
+/// let reassigned = reassigned_spectrogram(&signal, None, None).unwrap();
+/// ```
 pub fn reassigned_spectrogram(
     y: &[f32],
     sr: Option<u32>,
@@ -128,6 +237,29 @@ pub fn reassigned_spectrogram(
     Ok(reassigned)
 }
 
+/// Computes the Constant-Q Transform (CQT) of a signal.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `sr` - Optional sample rate in Hz (defaults to 44100)
+/// * `hop_length` - Optional hop length in samples (defaults to 512)
+/// * `fmin` - Optional minimum frequency in Hz (defaults to 32.70, C1)
+/// * `n_bins` - Optional number of frequency bins (defaults to 84)
+///
+/// # Returns
+/// Returns a `Result` containing an `Array2<Complex<f32>>` representing the CQT spectrogram,
+/// or an `AudioError` if computation fails.
+///
+/// # Errors
+/// * `AudioError::InsufficientData` - If signal length is less than `hop_length`.
+/// * `AudioError::InvalidInput` - If `fmin` is not positive.
+/// * `AudioError::ComputationFailed` - If STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0; 1024];
+/// let cqt_result = cqt(&signal, None, None, None, None).unwrap();
+/// ```
 pub fn cqt(
     y: &[f32],
     sr: Option<u32>,
@@ -176,6 +308,27 @@ pub fn cqt(
     Ok(S_cqt)
 }
 
+/// Computes the inverse Constant-Q Transform (iCQT) to reconstruct a signal.
+///
+/// # Arguments
+/// * `C` - CQT spectrogram as an `Array2<Complex<f32>>`
+/// * `sr` - Optional sample rate in Hz (defaults to 44100)
+/// * `hop_length` - Optional hop length in samples (defaults to 512)
+/// * `fmin` - Optional minimum frequency in Hz (defaults to 32.70, C1)
+///
+/// # Returns
+/// Returns a `Result` containing a `Vec<f32>` of the reconstructed signal,
+/// or an `AudioError` if computation fails.
+///
+/// # Errors
+/// * `AudioError::InvalidInput` - If `fmin` is not positive.
+///
+/// # Examples
+/// ```
+/// use ndarray::arr2;
+/// let cqt_data = arr2(&[[Complex::new(1.0, 0.0)]]);
+/// let signal = icqt(&cqt_data, None, None, None).unwrap();
+/// ```
 pub fn icqt(
     C: &Array2<Complex<f32>>,
     sr: Option<u32>,
@@ -236,6 +389,28 @@ pub fn icqt(
     Ok(y)
 }
 
+/// Computes a hybrid Constant-Q Transform (CQT) combining STFT and CQT properties.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `sr` - Optional sample rate in Hz (defaults to 44100)
+/// * `hop_length` - Optional hop length in samples (defaults to 512)
+/// * `fmin` - Optional minimum frequency in Hz (defaults to 32.70, C1)
+///
+/// # Returns
+/// Returns a `Result` containing an `Array2<Complex<f32>>` representing the hybrid CQT,
+/// or an `AudioError` if computation fails.
+///
+/// # Errors
+/// * `AudioError::InsufficientData` - If signal length is less than `n_fft`.
+/// * `AudioError::InvalidInput` - If `fmin` is not positive.
+/// * `AudioError::ComputationFailed` - If STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0; 1024];
+/// let hybrid = hybrid_cqt(&signal, None, None, None).unwrap();
+/// ```
 pub fn hybrid_cqt(
     y: &[f32],
     sr: Option<u32>,
@@ -258,7 +433,6 @@ pub fn hybrid_cqt(
     let S_stft = stft(y, Some(n_fft), Some(hop_length), None)
         .map_err(|e| AudioError::ComputationFailed(format!("STFT failed: {}", e)))?;
     let mut S_hybrid = Array2::zeros((n_bins, S_stft.shape()[1]));
-    let freqs = fft_frequencies(Some(sr), Some(n_fft));
     let mut planner = FftPlanner::new();
     let fft = planner.plan_fft_forward(n_fft);
 
@@ -281,6 +455,28 @@ pub fn hybrid_cqt(
     Ok(S_hybrid)
 }
 
+/// Computes a pseudo Constant-Q Transform (CQT) using STFT bin mapping.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `sr` - Optional sample rate in Hz (defaults to 44100)
+/// * `hop_length` - Optional hop length in samples (defaults to 512)
+/// * `fmin` - Optional minimum frequency in Hz (defaults to 32.70, C1)
+///
+/// # Returns
+/// Returns a `Result` containing an `Array2<Complex<f32>>` representing the pseudo CQT,
+/// or an `AudioError` if computation fails.
+///
+/// # Errors
+/// * `AudioError::InsufficientData` - If signal length is less than `n_fft`.
+/// * `AudioError::InvalidInput` - If `fmin` is not positive.
+/// * `AudioError::ComputationFailed` - If STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0; 1024];
+/// let pseudo = pseudo_cqt(&signal, None, None, None).unwrap();
+/// ```
 pub fn pseudo_cqt(
     y: &[f32],
     sr: Option<u32>,
@@ -316,6 +512,29 @@ pub fn pseudo_cqt(
     Ok(S_pseudo)
 }
 
+/// Computes the Variable-Q Transform (VQT) of a signal.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `sr` - Optional sample rate in Hz (defaults to 44100)
+/// * `hop_length` - Optional hop length in samples (defaults to 512)
+/// * `fmin` - Optional minimum frequency in Hz (defaults to 32.70, C1)
+/// * `n_bins` - Optional number of frequency bins (defaults to 84)
+///
+/// # Returns
+/// Returns a `Result` containing an `Array2<Complex<f32>>` representing the VQT,
+/// or an `AudioError` if computation fails.
+///
+/// # Errors
+/// * `AudioError::InsufficientData` - If signal length is less than `hop_length`.
+/// * `AudioError::InvalidInput` - If `fmin` is not positive.
+/// * `AudioError::ComputationFailed` - If STFT computation fails.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0; 1024];
+/// let vqt_result = vqt(&signal, None, None, None, None).unwrap();
+/// ```
 pub fn vqt(
     y: &[f32],
     sr: Option<u32>,
@@ -363,6 +582,28 @@ pub fn vqt(
     Ok(S_vqt)
 }
 
+/// Computes the Fourier Modulation Transform (FMT) of a signal.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `t_min` - Optional minimum time period in seconds (defaults to 0.005)
+/// * `n_fmt` - Optional number of modulation frequencies (defaults to 5)
+/// * `kind` - Optional transform kind ("cos" or others, defaults to "cos")
+/// * `beta` - Optional power for magnitude scaling (defaults to 2.0)
+///
+/// # Returns
+/// Returns a `Result` containing an `Array2<f32>` representing the FMT spectrogram,
+/// or an `AudioError` if computation fails.
+///
+/// # Errors
+/// * `AudioError::InsufficientData` - If signal length is less than `hop_length`.
+/// * `AudioError::InvalidInput` - If `t_min` is not positive.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0; 1024];
+/// let fmt_result = fmt(&signal, None, None, None, None).unwrap();
+/// ```
 pub fn fmt(
     y: &[f32],
     t_min: Option<f32>,
@@ -409,10 +650,40 @@ pub fn fmt(
     Ok(S)
 }
 
+/// Generates a Hann window vector.
+///
+/// # Arguments
+/// * `n` - Length of the window
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing the Hann window coefficients.
+///
+/// # Examples
+/// ```
+/// let window = hann_window(5);
+/// assert_eq!(window.len(), 5);
+/// ```
 fn hann_window(n: usize) -> Vec<f32> {
     (0..n).map(|i| 0.5 * (1.0 - (2.0 * PI * i as f32 / (n - 1) as f32).cos())).collect()
 }
 
+/// Computes STFT with time or frequency derivative for reassignment.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `n_fft` - Optional FFT window size (defaults to 2048)
+/// * `hop_length` - Optional hop length in samples (defaults to n_fft/4)
+/// * `time_derivative` - If true, computes time derivative; if false, frequency derivative
+///
+/// # Returns
+/// Returns a `Result` containing an `Array2<Complex<f32>>` with derivative information,
+/// or an `AudioError` if computation fails.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0; 2048];
+/// let deriv = stft_with_derivative(&signal, None, None, true).unwrap();
+/// ```
 fn stft_with_derivative(
     y: &[f32],
     n_fft: Option<usize>,
@@ -445,6 +716,25 @@ fn stft_with_derivative(
     Ok(S)
 }
 
+/// Designs a Butterworth bandpass filter.
+///
+/// # Arguments
+/// * `lowcut` - Lower cutoff frequency in Hz
+/// * `highcut` - Upper cutoff frequency in Hz
+/// * `fs` - Sampling frequency in Hz
+/// * `order` - Optional filter order (defaults to 2)
+///
+/// # Returns
+/// Returns a `Result` containing a tuple `(b, a)` of numerator and denominator coefficients,
+/// or an `AudioError` if frequencies are invalid.
+///
+/// # Errors
+/// * `AudioError::InvalidInput` - If `lowcut` <= 0, `highcut` <= `lowcut`, or `highcut` >= `fs/2`.
+///
+/// # Examples
+/// ```
+/// let (b, a) = butterworth_bandpass(100.0, 1000.0, 44100.0, None).unwrap();
+/// ```
 fn butterworth_bandpass(lowcut: f32, highcut: f32, fs: f32, order: Option<usize>) -> Result<(Vec<f32>, Vec<f32>), AudioError> {
     if lowcut <= 0.0 || highcut <= lowcut || highcut >= fs / 2.0 {
         return Err(AudioError::InvalidInput(format!(
@@ -496,6 +786,20 @@ fn butterworth_bandpass(lowcut: f32, highcut: f32, fs: f32, order: Option<usize>
     Ok((b, a))
 }
 
+/// Convolves two vectors.
+///
+/// # Arguments
+/// * `a` - First input vector
+/// * `b` - Second input vector
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing the convolution result.
+///
+/// # Examples
+/// ```
+/// let result = convolve(&[1.0, 2.0], &[3.0, 4.0]);
+/// assert_eq!(result, vec![3.0, 10.0, 8.0]);
+/// ```
 fn convolve(a: &[f32], b: &[f32]) -> Vec<f32> {
     let mut result = vec![0.0; a.len() + b.len() - 1];
     for i in 0..a.len() {
@@ -506,6 +810,20 @@ fn convolve(a: &[f32], b: &[f32]) -> Vec<f32> {
     result
 }
 
+/// Evaluates a digital filter's frequency response at a given frequency.
+///
+/// # Arguments
+/// * `b` - Numerator coefficients
+/// * `a` - Denominator coefficients
+/// * `w` - Frequency in radians/sample
+///
+/// # Returns
+/// Returns a `Complex<f32>` representing the filter's response.
+///
+/// # Examples
+/// ```
+/// let response = evaluate_filter(&[1.0], &[1.0, -0.5], 0.1);
+/// ```
 fn evaluate_filter(b: &[f32], a: &[f32], w: f32) -> Complex<f32> {
     let mut num = Complex::new(0.0, 0.0);
     let mut den = Complex::new(0.0, 0.0);
@@ -520,6 +838,27 @@ fn evaluate_filter(b: &[f32], a: &[f32], w: f32) -> Complex<f32> {
     num / den
 }
 
+/// Computes the Instantaneous Impulse Response Transform (IIRT) using bandpass filtering.
+///
+/// # Arguments
+/// * `y` - Input signal as a slice of `f32`
+/// * `sr` - Optional sample rate in Hz (defaults to 44100)
+/// * `win_length` - Optional window length in samples (defaults to 2048)
+/// * `hop_length` - Optional hop length in samples (defaults to win_length/4)
+///
+/// # Returns
+/// Returns a `Result` containing an `Array2<f32>` representing the IIRT spectrogram,
+/// or an `AudioError` if computation fails.
+///
+/// # Errors
+/// * `AudioError::InsufficientData` - If signal length is less than `win_length`.
+/// * `AudioError::InvalidInput` - If bandpass filter frequencies are invalid.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0; 4096];
+/// let iirt_result = iirt(&signal, None, None, None).unwrap();
+/// ```
 pub fn iirt(
     y: &[f32],
     sr: Option<u32>,
@@ -555,6 +894,21 @@ pub fn iirt(
     Ok(S)
 }
 
+/// Applies an IIR filter to a signal.
+///
+/// # Arguments
+/// * `x` - Input signal as a slice of `f32`
+/// * `b` - Numerator coefficients
+/// * `a` - Denominator coefficients
+///
+/// # Returns
+/// Returns a `Vec<f32>` containing the filtered signal.
+///
+/// # Examples
+/// ```
+/// let signal = vec![1.0, 2.0, 3.0];
+/// let filtered = filter(&signal, &[1.0, 0.0, 0.0], &[1.0, -0.5, 0.0]);
+/// ```
 fn filter(x: &[f32], b: &[f32], a: &[f32]) -> Vec<f32> {
     let mut y = vec![0.0; x.len()];
     for n in 0..x.len() {
