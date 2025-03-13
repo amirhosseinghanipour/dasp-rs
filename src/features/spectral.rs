@@ -1,5 +1,5 @@
 use ndarray::{Array1, Array2, s, Axis, Array, arr2};
-use crate::signal_processing::spectral::{stft, cqt};
+use crate::signal_processing::time_frequency::{stft, cqt};
 use crate::hz_to_midi;
 use ndarray_linalg::{Solve, Eig};
 use num_complex::Complex;
@@ -53,10 +53,11 @@ pub fn chroma_cqt(
     let bpo = bins_per_octave.unwrap_or(12);
     let n_bins = bpo * 3;
     let C = match (y, C) {
-        (Some(y), None) => cqt(y, Some(sr), Some(hop), Some(fmin), Some(n_bins)),
-        (None, Some(C)) => C.mapv(|x| num_complex::Complex::new(x, 0.0)),
+        (Some(y), None) => cqt(y, Some(sr), Some(hop), Some(fmin), Some(n_bins))
+            .map_err(|e| e.to_string()),
+        (None, Some(C)) => Ok(C.mapv(|x| num_complex::Complex::new(x, 0.0))),
         _ => panic!("Must provide either y or C"),
-    };
+    }?;
     let mut chroma = Array2::zeros((12, C.shape()[1]));
     for frame in 0..C.shape()[1] {
         for bin in 0..C.shape()[0] {

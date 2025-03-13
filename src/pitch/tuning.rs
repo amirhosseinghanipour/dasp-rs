@@ -1,5 +1,5 @@
 use ndarray::{Array1, Array2, Axis};
-use crate::signal_processing::spectral::stft;
+use crate::signal_processing::time_frequency::stft;
 use crate::fft_frequencies;
 use crate::AudioError;
 
