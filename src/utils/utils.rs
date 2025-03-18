@@ -89,22 +89,3 @@ pub fn append_audio<P: AsRef<Path>>(path: P, audio_data: &AudioData) -> Result<(
     writer.finalize()?;
     Ok(())
 }
-
-/// Normalizes audio data to a specified peak level.
-///
-/// # Arguments
-/// * `samples` - Input audio samples
-/// * `peak_level` - Desired peak level (0.0 to 1.0)
-///
-/// # Returns
-/// Returns a `Vec<f32>` containing the normalized audio samples.
-///
-/// # Examples
-/// ```
-/// let normalized_samples = normalize(&samples, 0.9);
-/// ```
-pub fn normalize(samples: &[f32], peak_level: f32) -> Vec<f32> {
-    let max_sample = samples.iter().cloned().fold(0.0_f32, f32::max);
-    let normalization_factor = peak_level / max_sample;
-    samples.iter().map(|&sample| sample * normalization_factor).collect()
-}
