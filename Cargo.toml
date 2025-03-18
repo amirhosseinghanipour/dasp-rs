@@ -5,7 +5,11 @@ edition = "2024"
 description = "A crate for digital signal processing, speech processing, music analysis, and phonetics."
 authors = ["Amirhossein Ghanipour amirhosseinghanipour@gmail.com"]
 license = "CC-BY-NC-4.0"
-keywords = ["dasp", "dsp", "audio processing", "speech processing", "music analysis"]
+keywords = ["audio", "dsp", "audio-processing", "speech-processing", "music-analysis"]
+repository = "https://github.com/amirhosseinghanipour/dasp-rs"
+documentation = "https://docs.rs/audio_processing/0.1.1"
+categories = ["multimedia::audio", "algorithms"]
+readme = "README.md"
 
 [dependencies]
 hound = "3.5.1"
