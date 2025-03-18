@@ -1,4 +1,8 @@
-use crate::core::AudioData;
+use std::path::Path;
+use std::io::Cursor;
+
+use crate::{core::AudioData, AudioError};
+use hound::WavReader;
 use ndarray::Array2;
 
 /// Calculates the duration of an audio signal in seconds.
@@ -276,4 +280,26 @@ pub fn times_like(x: &Array2<f32>, sr: Option<u32>, hop_length: Option<usize>, _
     let sample_rate = sr.unwrap_or(44100);
     let hop = hop_length.unwrap_or(512);
     (0..x.shape()[1]).map(|i| i as f32 * hop as f32 / sample_rate as f32).collect()
+}
+
+/// Extracts sample rate from WAV file header.
+///
+/// Lightweight metadata query without full sample loading.
+///
+/// # Parameters
+/// - `path`: WAV file path (`AsRef<Path>`).
+///
+/// # Returns
+/// - `Ok(u32)`: Sample rate in Hz.
+/// - `Err(AudioError)`: I/O or format error.
+/// 
+/// # Example
+/// ```
+/// let rate = get_samplerate("audio.wav")?;
+/// assert_eq!(rate, 44100);
+/// ```
+pub fn get_samplerate<P: AsRef<Path>>(path: P) -> Result<u32, AudioError> {
+    let wav_data = std::fs::read(&path)?;
+    let reader = WavReader::new(Cursor::new(wav_data))?;
+    Ok(reader.spec().sample_rate)
 }
