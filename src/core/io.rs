@@ -91,11 +91,15 @@ impl AudioData {
     ///
     /// # Example
     /// ```
+    /// use crate::core::AudioData;
     /// let audio = AudioData::new(
-    ///     vec![0.5, -0.3, 0.8], // 3 samples
-    ///     44100,                // 44.1kHz
+    ///     vec![0.5, -0.3, 0.8], // 3 mono samples
+    ///     44100,                // 44.1 kHz
     ///     1                     // Mono
     /// );
+    /// assert_eq!(audio.samples.len(), 3);
+    /// assert_eq!(audio.sample_rate, 44100);
+    /// assert_eq!(audio.channels, 1);
     /// ```
     pub fn new(samples: Vec<f32>, sample_rate: u32, channels: u16) -> Self {
         Self { samples, sample_rate, channels }
@@ -119,13 +123,19 @@ impl AudioData {
 /// - `Err(AudioError)`: Failure due to I/O, format, or parameter errors
 ///
 /// # Errors
-/// - `FileNotFound`: The specified file does not exist.
-/// - `InvalidRange`: Offset/duration exceeds file length
+/// - `AudioError::FileNotFound`: The specified file does not exist
+/// - `AudioError::InvalidRange`: Offset/duration exceeds file length
+/// - `AudioError::OpenError`: Invalid WAV file or corrupted header
 ///
 /// # Examples
 /// ```
-/// // Load 48kHz stereo file as 16kHz mono starting at 2 seconds, 5 seconds long
-/// let audio = load("track.wav", Some(16000), Some(true), Some(2.0), Some(5.0))?;
+/// use crate::core::{load, AudioData};
+/// // Load entire file as mono at original sample rate
+/// let audio = load("track.wav", None, Some(true), None, None)?;
+/// 
+/// // Load 5-second segment starting at 2 seconds, resampled to 16kHz
+/// let segment = load("track.wav", Some(16000), Some(true), Some(2.0), Some(5.0))?;
+/// # Ok::<(), crate::core::AudioError>(())
 /// ```
 pub fn load<P: AsRef<Path>>(
     path: P,
@@ -195,14 +205,20 @@ pub fn load<P: AsRef<Path>>(
 /// - `Ok(())`: Successful write
 /// - `Err(AudioError)`: I/O or format error
 ///
+/// # Errors
+/// - `AudioError::IoError`: Failed to write to filesystem
+/// - `AudioError::HoundError`: WAV format encoding error
+///
 /// # Notes
 /// - Automatically clamps samples to `[-1.0, 1.0]` range
 /// - Preserves channel count and sample rate metadata
 ///
 /// # Example
 /// ```
-/// let processed = process_audio(original_audio)?;
-/// export("processed.wav", &processed)?;
+/// use crate::core::{AudioData, export};
+/// let audio = AudioData::new(vec![0.1, 0.2, 0.3], 44100, 1);
+/// export("output.wav", &audio)?;
+/// # Ok::<(), crate::core::AudioError>(())
 /// ```
 pub fn export<P: AsRef<Path>>(path: P, audio_data: &AudioData) -> Result<(), AudioError> {
     let spec = WavSpec {
@@ -235,17 +251,20 @@ pub fn export<P: AsRef<Path>>(path: P, audio_data: &AudioData) -> Result<(), Aud
 /// # Returns
 /// - `Ok(impl Iterator<Item = Vec<f32>>)`: Block iterator.
 /// - `Err(AudioError)`: I/O or format error.
-/// 
-/// # Error
-/// - `FileNotFound`: The specified file does not exist.
-/// 
+///
+/// # Errors
+/// - `AudioError::FileNotFound`: The specified file does not exist
+/// - `AudioError::OpenError`: Invalid WAV file or corrupted header
+///
 /// # Example
 /// ```
-/// let stream = stream("long_audio.wav", 100, 4096, None)?;
+/// use crate::core::stream;
+/// let stream = stream("audio.wav", 100, 4096, None)?;
 /// for block in stream {
-///     let fft = compute_fft(&block);
-///     // Process block
+///     // Process each 4096-sample block
+///     println!("Block size: {}", block.len());
 /// }
+/// # Ok::<(), crate::core::AudioError>(())
 /// ```
 ///
 /// # Performance
@@ -301,18 +320,21 @@ pub fn stream<P: AsRef<Path>>(
 /// # Returns
 /// - `Ok(Receiver<Vec<f32>>)`: Channel receiver for blocks.
 /// - `Err(AudioError)`: I/O or streaming error.
-/// 
-/// # Error
-/// - `FileNotFound`: The specified file does not exist.
-/// 
+///
+/// # Errors
+/// - `AudioError::FileNotFound`: The specified file does not exist
+/// - `AudioError::OpenError`: Invalid WAV file or corrupted header
+/// - `AudioError::StreamError`: Channel communication failure
+///
 /// # Example
 /// ```
-/// let rx = stream_lazy("live_audio.wav", 1000, 1024, Some(512))?;
-/// loop {
-///     if let Ok(block) = rx.recv() {
-///         // Process 1024-sample block with 50% overlap
-///     }
+/// use crate::core::stream_lazy;
+/// let rx = stream_lazy("audio.wav", 1000, 1024, Some(512))?;
+/// while let Ok(block) = rx.recv() {
+///     // Process each 1024-sample block with 50% overlap
+///     println!("Received block of {} samples", block.len());
 /// }
+/// # Ok::<(), crate::core::AudioError>(())
 /// ```
 ///
 /// # Performance
@@ -388,7 +410,7 @@ pub fn stream_lazy<P: AsRef<Path>>(
     Ok(rx)
 }
 
-#[cfg(test)]#[cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
@@ -445,12 +467,9 @@ mod tests {
 
     #[test]
     fn test_load_file_not_found() {
-        // Ensure the file does not exist
         if std::path::Path::new("test.wav").exists() {
             fs::remove_file("test.wav").unwrap();
         }
-
-        // Attempt to load the file and expect an error
         let result = load("test.wav", None, Some(true), None, None);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), AudioError::FileNotFound(_)));
@@ -458,12 +477,9 @@ mod tests {
 
     #[test]
     fn test_stream_file_not_found() {
-        // Ensure the file does not exist
         if std::path::Path::new("test.wav").exists() {
             fs::remove_file("test.wav").unwrap();
         }
-
-        // Attempt to stream the file and expect an error
         let result = stream("test.wav", 3, 2, Some(2));
         assert!(result.is_err());
         if let Err(e) = result {
@@ -473,12 +489,9 @@ mod tests {
 
     #[test]
     fn test_stream_lazy_file_not_found() {
-        // Ensure the file does not exist
         if std::path::Path::new("test.wav").exists() {
             fs::remove_file("test.wav").unwrap();
         }
-
-        // Attempt to stream the file lazily and expect an error
         let result = stream_lazy("test.wav", 3, 2, Some(2));
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), AudioError::FileNotFound(_)));
