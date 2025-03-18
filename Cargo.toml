@@ -5,7 +5,7 @@ edition = "2024"
 description = "A crate for digital signal processing, speech processing, music analysis, and phonetics."
 authors = ["Amirhossein Ghanipour amirhosseinghanipour@gmail.com"]
 license = "CC-BY-NC-4.0"
-keywords = ["dasp", "dsp", "digital audio signal processing", "speech processing", "music analysis", "speech signal processing", "audio processing"]
+keywords = ["dasp", "dsp", "audio processing", "speech processing", "music analysis"]
 
 [dependencies]
 hound = "3.5.1"
