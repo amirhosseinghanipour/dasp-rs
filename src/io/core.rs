@@ -1,8 +1,10 @@
 use hound::{WavReader, WavWriter, WavSpec, SampleFormat};
 use std::path::Path;
 use thiserror::Error;
-use crate::signal_processing::to_mono;
+use crate::signal_processing::{to_mono, resample};
 use ndarray::ShapeError;
+use rayon::prelude::*;
+use std::sync::mpsc::{channel, Receiver};
 
 /// Custom error types for audio processing operations.
 ///
@@ -203,7 +205,6 @@ pub fn stream<P: AsRef<Path>>(
     let spec = reader.spec();
     let hop = hop_length.unwrap_or(frame_length);
 
-    // Read all samples into memory
     let samples: Vec<f32> = match spec.sample_format {
         hound::SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap()).collect(),
         hound::SampleFormat::Int => reader
@@ -212,36 +213,123 @@ pub fn stream<P: AsRef<Path>>(
             .collect(),
     };
 
-    let mut blocks = Vec::new();
-    let mut buffer = Vec::with_capacity(frame_length);
+    let indices: Vec<usize> = (0..samples.len())
+        .step_by(hop)
+        .take(block_length)
+        .collect();
 
-    for i in (0..samples.len()).step_by(hop) {
-        buffer.clear();
-        let start = i;
-        let end = std::cmp::min(i + frame_length, samples.len());
-        buffer.extend_from_slice(&samples[start..end]);
-        buffer.resize(frame_length, 0.0);
-        blocks.push(buffer.clone());
-        if blocks.len() >= block_length {
-            break;
-        }
-    }
+    let blocks: Vec<Vec<f32>> = indices
+        .into_par_iter()
+        .map(|i| {
+            let start = i;
+            let end = std::cmp::min(i + frame_length, samples.len());
+            let mut buffer = Vec::with_capacity(frame_length);
+            buffer.extend_from_slice(&samples[start..end]);
+            buffer.resize(frame_length, 0.0);
+            buffer
+        })
+        .collect();
 
     Ok(blocks.into_iter())
 }
 
-/// Resamples audio data to a target sample rate.
+/// Lazily streams audio blocks from a WAV file, processing chunks in parallel.
+///
+/// This function streams blocks of audio data without loading the entire file into memory,
+/// using parallel processing for efficiency. It returns a `Receiver` that yields blocks
+/// as they become available.
 ///
 /// # Arguments
-/// * `samples` - Input audio samples
-/// * `orig_sr` - Original sample rate
-/// * `target_sr` - Target sample rate
+/// * `path` - Path to the WAV file
+/// * `block_length` - Maximum number of blocks to return
+/// * `frame_length` - Size of each frame in samples
+/// * `hop_length` - Optional number of samples between frames (defaults to frame_length)
 ///
 /// # Returns
-/// Returns `Result<Vec<f32>, AudioError>` with resampled audio data
-fn resample(samples: &[f32], orig_sr: u32, target_sr: u32) -> Result<Vec<f32>, AudioError> {
-    crate::signal_processing::resample(samples, orig_sr, target_sr)
-        .map_err(|e| AudioError::OpenError(hound::Error::IoError(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))))
+/// Returns `Result<Receiver<Vec<f32>>, AudioError>` containing a receiver that yields
+/// audio blocks or an error if streaming fails.
+///
+/// # Examples
+/// ```
+/// use std::path::Path;
+/// let rx = stream_lazy(Path::new("audio.wav"), 10, 1024, None)?;
+/// for block in rx {
+///     println!("Block length: {}", block.len());
+/// }
+/// ```
+pub fn stream_lazy<P: AsRef<Path>>(
+    path: P,
+    block_length: usize,
+    frame_length: usize,
+    hop_length: Option<usize>,
+) -> Result<Receiver<Vec<f32>>, AudioError> {
+    let mut reader = WavReader::open(path)?;
+    let spec = reader.spec();
+    let hop = hop_length.unwrap_or(frame_length);
+
+    let (tx, rx) = channel();
+
+    std::thread::spawn(move || {
+        let samples_iter: Box<dyn Iterator<Item = f32>> = match spec.sample_format {
+            hound::SampleFormat::Float => Box::new(reader
+                .samples::<f32>()
+                .map(|s| s.unwrap_or(0.0))),
+            hound::SampleFormat::Int => Box::new(reader
+                .samples::<i16>()
+                .map(|s| s.unwrap_or(0))
+                .map(|s| s as f32 / i16::MAX as f32)),
+        };
+
+        let mut chunk = Vec::with_capacity(frame_length * block_length);
+        let mut block_count = 0;
+
+        for (i, sample) in samples_iter.enumerate() {
+            chunk.push(sample);
+
+            if (i + 1) % hop == 0 || chunk.len() >= frame_length {
+                if chunk.len() >= frame_length {
+                    let indices: Vec<usize> = (0..chunk.len())
+                        .step_by(hop)
+                        .take(block_length - block_count)
+                        .collect();
+
+                    let blocks: Vec<Vec<f32>> = indices
+                        .par_iter()
+                        .map(|&start| {
+                            let end = std::cmp::min(start + frame_length, chunk.len());
+                            let mut buffer = Vec::with_capacity(frame_length);
+                            buffer.extend_from_slice(&chunk[start..end]);
+                            buffer.resize(frame_length, 0.0);
+                            buffer
+                        })
+                        .collect();
+
+                    // Send blocks to the receiver
+                    for block in blocks {
+                        if tx.send(block).is_err() {
+                            return;
+                        }
+                        block_count += 1;
+                        if block_count >= block_length {
+                            return;
+                        }
+                    }
+
+                    let last_hop = (indices.last().unwrap_or(&0) + hop).min(chunk.len());
+                    chunk.drain(..last_hop);
+                }
+            }
+        }
+
+        // Process any remaining samples
+        if !chunk.is_empty() && block_count < block_length {
+            let mut buffer = chunk;
+            buffer.resize(frame_length, 0.0);
+            let _ = tx.send(buffer);
+        }
+    });
+
+    Ok(rx)
 }
 
 /// Gets the sample rate of a WAV file.
