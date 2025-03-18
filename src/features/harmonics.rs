@@ -77,9 +77,9 @@ pub fn interp_harmonics(x: &[f32], freqs: &[f32], harmonics: &[f32]) -> Array2<f
 /// let harmonics = vec![1.0, 2.0];
 /// let salience_map = salience(&S, &freqs, &harmonics, None);
 /// ```
-pub fn salience(S: &Array2<f32>, freqs: &[f32], harmonics: &[f32], weights: Option<&[f32]>) -> Array2<f32> {
-    let n_bins = S.shape()[0];
-    let n_frames = S.shape()[1];
+pub fn salience(s: &Array2<f32>, freqs: &[f32], harmonics: &[f32], weights: Option<&[f32]>) -> Array2<f32> {
+    let n_bins = s.shape()[0];
+    let n_frames = s.shape()[1];
     let n_harmonics = harmonics.len();
     let default_weights = vec![1.0; n_harmonics];
     let weights = weights.unwrap_or(&default_weights);
@@ -97,8 +97,8 @@ pub fn salience(S: &Array2<f32>, freqs: &[f32], harmonics: &[f32], weights: Opti
                     let left_freq = freqs[nearest_bin];
                     let right_freq = freqs[(nearest_bin + 1).min(n_bins - 1)];
                     let alpha = (harmonic_freq - left_freq) / (right_freq - left_freq);
-                    let interp_val = S[[nearest_bin, frame]] * (1.0 - alpha) + 
-                                   S[[(nearest_bin + 1).min(n_bins - 1), frame]] * alpha;
+                    let interp_val = s[[nearest_bin, frame]] * (1.0 - alpha) + 
+                                   s[[(nearest_bin + 1).min(n_bins - 1), frame]] * alpha;
                     total_salience += interp_val * weights[h_idx];
                 }
             }
@@ -188,17 +188,17 @@ pub fn f0_harmonics(x: &[f32], f0: &[f32], freqs: &[f32], harmonics: &[f32]) -> 
 /// ]).unwrap();
 /// let result = phase_vocoder(&D, 2.0, None, None);
 /// ```
-pub fn phase_vocoder(D: &Array2<Complex<f32>>, rate: f32, hop_length: Option<usize>, n_fft: Option<usize>) -> Array2<Complex<f32>> {
-    let n = n_fft.unwrap_or((D.shape()[0] - 1) * 2);
+pub fn phase_vocoder(d: &Array2<Complex<f32>>, rate: f32, hop_length: Option<usize>, n_fft: Option<usize>) -> Array2<Complex<f32>> {
+    let n = n_fft.unwrap_or((d.shape()[0] - 1) * 2);
     let hop = hop_length.unwrap_or(n / 4);
-    let orig_frames = D.shape()[1];
+    let orig_frames = d.shape()[1];
     let new_frames = ((orig_frames as f32 * hop as f32) / rate / hop as f32).ceil() as usize;
-    let mut output = Array2::zeros((D.shape()[0], new_frames));
+    let mut output = Array2::zeros((d.shape()[0], new_frames));
 
     for new_idx in 0..new_frames {
         let orig_idx = ((new_idx as f32 * hop as f32 * rate) / hop as f32) as usize;
         if orig_idx < orig_frames {
-            output.column_mut(new_idx).assign(&D.column(orig_idx));
+            output.column_mut(new_idx).assign(&d.column(orig_idx));
         }
     }
     output

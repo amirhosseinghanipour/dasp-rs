@@ -29,7 +29,7 @@ pub fn tempo(
     let sr = sr.unwrap_or(44100);
     let hop = hop_length.unwrap_or(512);
     let onset_owned = if onset_envelope.is_none() {
-        let S = stft(
+        let s = stft(
             y.expect("Audio signal required when onset_envelope is None"),
             None,
             Some(hop),
@@ -37,7 +37,7 @@ pub fn tempo(
         )
         .expect("STFT computation failed")
         .mapv(|x| x.norm());
-        S.map_axis(Axis(0), |row| row.iter().map(|&x| x.max(0.0)).sum::<f32>())
+        s.map_axis(Axis(0), |row| row.iter().map(|&x| x.max(0.0)).sum::<f32>())
     } else {
         onset_envelope.unwrap().to_owned()
     };
@@ -77,11 +77,11 @@ pub fn tempogram(
     hop_length: Option<usize>,
     win_length: Option<usize>,
 ) -> Array2<f32> {
-    let sr = sr.unwrap_or(44100);
+    let _sr = sr.unwrap_or(44100);
     let hop = hop_length.unwrap_or(512);
     let win = win_length.unwrap_or(384);
     let onset_owned = if onset_envelope.is_none() {
-        let S = stft(
+        let s = stft(
             y.expect("Audio signal required when onset_envelope is None"),
             None, 
             Some(hop),
@@ -89,7 +89,7 @@ pub fn tempogram(
         )
         .expect("STFT computation failed")
         .mapv(|x| x.norm());
-        S.map_axis(Axis(0), |row| row.iter().map(|&x| x.max(0.0)).sum::<f32>())
+        s.map_axis(Axis(0), |row| row.iter().map(|&x| x.max(0.0)).sum::<f32>())
     } else {
         onset_envelope.unwrap().to_owned()
     };

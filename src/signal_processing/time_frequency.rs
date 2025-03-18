@@ -1,7 +1,7 @@
 use rustfft::FftPlanner;
 use num_complex::Complex;
 use ndarray::{Array1, Array2, s};
-use crate::{AudioError, utils::frequency::fft_frequencies};
+use crate::{utils::frequency::fft_frequencies, AudioData, AudioError};
 use std::f32::consts::{PI, SQRT_2};
 
 /// Computes the Short-Time Fourier Transform (STFT) of a signal.
@@ -169,10 +169,10 @@ fn hamming_vec(win_length: usize) -> Vec<f32> {
 /// let (mag, phase) = magphase(&spectrogram, None);
 /// assert_eq!(mag[[0, 0]], 5.0); // sqrt(3^2 + 4^2)
 /// ```
-pub fn magphase(D: &Array2<Complex<f32>>, power: Option<f32>) -> (Array2<f32>, Array2<Complex<f32>>) {
+pub fn magphase(d: &Array2<Complex<f32>>, power: Option<f32>) -> (Array2<f32>, Array2<Complex<f32>>) {
     let power_val = power.unwrap_or(1.0);
-    let magnitude = D.mapv(|x| x.norm().powf(power_val));
-    let phase = D.mapv(|x| x / x.norm());
+    let magnitude = d.mapv(|x| x.norm().powf(power_val));
+    let phase = d.mapv(|x| x / x.norm());
     (magnitude, phase)
 }
 
@@ -209,26 +209,26 @@ pub fn reassigned_spectrogram(
         return Err(AudioError::InsufficientData(format!("Signal too short: {} < {}", y.len(), n_fft)));
     }
 
-    let S = stft(y, Some(n_fft), Some(hop_length), None)
+    let s = stft(y, Some(n_fft), Some(hop_length), None)
         .map_err(|e| AudioError::ComputationFailed(format!("STFT failed: {}", e)))?;
-    let S_time = stft_with_derivative(y, Some(n_fft), Some(hop_length), true)?;
-    let S_freq = stft_with_derivative(y, Some(n_fft), Some(hop_length), false)?;
+    let s_time = stft_with_derivative(y, Some(n_fft), Some(hop_length), true)?;
+    let s_freq = stft_with_derivative(y, Some(n_fft), Some(hop_length), false)?;
 
-    let mut reassigned = Array2::zeros(S.dim());
+    let mut reassigned = Array2::zeros(s.dim());
     let freqs = fft_frequencies(Some(sr), Some(n_fft));
-    let times = Array1::linspace(0.0, (y.len() as f32 - 1.0) / sr as f32, S.shape()[1]);
+    let times = Array1::linspace(0.0, (y.len() as f32 - 1.0) / sr as f32, s.shape()[1]);
 
-    for t in 0..S.shape()[1] {
-        for f in 0..S.shape()[0] {
-            let mag = S[[f, t]].norm();
+    for t in 0..s.shape()[1] {
+        for f in 0..s.shape()[0] {
+            let mag = s[[f, t]].norm();
             if mag > 1e-6 {
-                let dphi_dt = S_time[[f, t]].im / mag;
+                let dphi_dt = s_time[[f, t]].im / mag;
                 let t_reassigned = times[t] - dphi_dt * hop_length as f32 / sr as f32;
-                let dphi_df = S_freq[[f, t]].im / mag;
+                let dphi_df = s_freq[[f, t]].im / mag;
                 let f_reassigned = freqs[f] + dphi_df * sr as f32 / n_fft as f32;
 
-                let t_idx = ((t_reassigned * sr as f32 / hop_length as f32).round() as usize).min(S.shape()[1] - 1);
-                let f_idx = freqs.iter().position(|&x| x >= f_reassigned).unwrap_or(f).min(S.shape()[0] - 1);
+                let t_idx = ((t_reassigned * sr as f32 / hop_length as f32).round() as usize).min(s.shape()[1] - 1);
+                let f_idx = freqs.iter().position(|&x| x >= f_reassigned).unwrap_or(f).min(s.shape()[0] - 1);
                 reassigned[[f_idx, t_idx]] += mag;
             }
         }
@@ -261,13 +261,13 @@ pub fn reassigned_spectrogram(
 /// let cqt_result = cqt(&signal, None, None, None, None).unwrap();
 /// ```
 pub fn cqt(
-    y: &[f32],
-    sr: Option<u32>,
+    signal: &AudioData,
     hop_length: Option<usize>,
     fmin: Option<f32>,
     n_bins: Option<usize>,
 ) -> Result<Array2<Complex<f32>>, AudioError> {
-    let sr = sr.unwrap_or(44100);
+    let sr = signal.sample_rate;
+    let y = &signal.samples;
     let hop_length = hop_length.unwrap_or(512);
     let fmin = fmin.unwrap_or(32.70);
     let n_bins = n_bins.unwrap_or(84);
@@ -281,10 +281,10 @@ pub fn cqt(
     }
 
     let n_fft = ((sr as f32 / fmin * 2.0) as u32).next_power_of_two() as usize;
-    let S_stft = stft(y, Some(n_fft), Some(hop_length), None)
+    let s_stft = stft(y, Some(n_fft), Some(hop_length), None)
         .map_err(|e| AudioError::ComputationFailed(format!("STFT failed: {}", e)))?;
-    let n_frames = S_stft.shape()[1];
-    let mut S_cqt = Array2::zeros((n_bins, n_frames));
+    let n_frames = s_stft.shape()[1];
+    let mut s_cqt = Array2::zeros((n_bins, n_frames));
 
     let mut planner = FftPlanner::new();
     let fft = planner.plan_fft_forward(n_fft);
@@ -300,12 +300,12 @@ pub fn cqt(
         fft.process(&mut kernel.to_vec());
 
         for t in 0..n_frames {
-            let stft_frame = S_stft.slice(s![.., t]);
-            S_cqt[[k, t]] = stft_frame.iter().zip(kernel.iter()).map(|(&s, &k)| s * k.conj()).sum();
+            let stft_frame = s_stft.slice(s![.., t]);
+            s_cqt[[k, t]] = stft_frame.iter().zip(kernel.iter()).map(|(&s, &k)| s * k.conj()).sum();
         }
     }
 
-    Ok(S_cqt)
+    Ok(s_cqt)
 }
 
 /// Computes the inverse Constant-Q Transform (iCQT) to reconstruct a signal.
@@ -330,7 +330,7 @@ pub fn cqt(
 /// let signal = icqt(&cqt_data, None, None, None).unwrap();
 /// ```
 pub fn icqt(
-    C: &Array2<Complex<f32>>,
+    c: &Array2<Complex<f32>>,
     sr: Option<u32>,
     hop_length: Option<usize>,
     fmin: Option<f32>,
@@ -338,8 +338,8 @@ pub fn icqt(
     let sr = sr.unwrap_or(44100);
     let hop_length = hop_length.unwrap_or(512);
     let fmin = fmin.unwrap_or(32.70);
-    let n_bins = C.shape()[0];
-    let n_frames = C.shape()[1];
+    let n_bins = c.shape()[0];
+    let n_frames = c.shape()[1];
     let bins_per_octave = 12;
 
     if fmin <= 0.0 {
@@ -364,7 +364,7 @@ pub fn icqt(
         ifft.process(&mut kernel.to_vec());
 
         for t in 0..n_frames {
-            let mut frame = vec![Complex::new(C[[k, t]].re, C[[k, t]].im) * Complex::conj(&kernel[0]); n_fft];
+            let mut frame = vec![Complex::new(c[[k, t]].re, c[[k, t]].im) * Complex::conj(&kernel[0]); n_fft];
             ifft.process(&mut frame);
             let start = t * hop_length;
             for i in 0..n.min(n_samples - start) {
@@ -430,9 +430,9 @@ pub fn hybrid_cqt(
         return Err(AudioError::InvalidInput("fmin must be positive".to_string()));
     }
 
-    let S_stft = stft(y, Some(n_fft), Some(hop_length), None)
+    let s_stft = stft(y, Some(n_fft), Some(hop_length), None)
         .map_err(|e| AudioError::ComputationFailed(format!("STFT failed: {}", e)))?;
-    let mut S_hybrid = Array2::zeros((n_bins, S_stft.shape()[1]));
+    let mut s_hybrid = Array2::zeros((n_bins, s_stft.shape()[1]));
     let mut planner = FftPlanner::new();
     let fft = planner.plan_fft_forward(n_fft);
 
@@ -447,12 +447,12 @@ pub fn hybrid_cqt(
         }
         fft.process(&mut kernel.to_vec());
 
-        for t in 0..S_stft.shape()[1] {
-            S_hybrid[[k, t]] = S_stft.slice(s![.., t]).iter().zip(kernel.iter()).map(|(&s, &k)| s * k.conj()).sum();
+        for t in 0..s_stft.shape()[1] {
+            s_hybrid[[k, t]] = s_stft.slice(s![.., t]).iter().zip(kernel.iter()).map(|(&s, &k)| s * k.conj()).sum();
         }
     }
 
-    Ok(S_hybrid)
+    Ok(s_hybrid)
 }
 
 /// Computes a pseudo Constant-Q Transform (CQT) using STFT bin mapping.
@@ -496,20 +496,20 @@ pub fn pseudo_cqt(
         return Err(AudioError::InvalidInput("fmin must be positive".to_string()));
     }
 
-    let S_stft = stft(y, Some(n_fft), Some(hop_length), None)
+    let s_stft = stft(y, Some(n_fft), Some(hop_length), None)
         .map_err(|e| AudioError::ComputationFailed(format!("STFT failed: {}", e)))?;
-    let mut S_pseudo = Array2::zeros((n_bins, S_stft.shape()[1]));
+    let mut s_pseudo = Array2::zeros((n_bins, s_stft.shape()[1]));
     let freqs = fft_frequencies(Some(sr), Some(n_fft));
 
-    for t in 0..S_stft.shape()[1] {
+    for t in 0..s_stft.shape()[1] {
         for k in 0..n_bins {
             let fk = fmin * 2.0f32.powf(k as f32 / 12.0);
             let idx = freqs.iter().position(|&f| f >= fk).unwrap_or(0);
-            S_pseudo[[k, t]] = S_stft[[idx.min(S_stft.shape()[0] - 1), t]];
+            s_pseudo[[k, t]] = s_stft[[idx.min(s_stft.shape()[0] - 1), t]];
         }
     }
 
-    Ok(S_pseudo)
+    Ok(s_pseudo)
 }
 
 /// Computes the Variable-Q Transform (VQT) of a signal.
@@ -556,9 +556,9 @@ pub fn vqt(
     }
 
     let n_fft = ((sr as f32 / fmin * 2.0) as u32).next_power_of_two() as usize;
-    let S_stft = stft(y, Some(n_fft), Some(hop_length), None)
+    let s_stft = stft(y, Some(n_fft), Some(hop_length), None)
         .map_err(|e| AudioError::ComputationFailed(format!("STFT failed: {}", e)))?;
-    let mut S_vqt = Array2::zeros((n_bins, S_stft.shape()[1]));
+    let mut s_vqt = Array2::zeros((n_bins, s_stft.shape()[1]));
     let mut planner = FftPlanner::new();
     let fft = planner.plan_fft_forward(n_fft);
 
@@ -574,12 +574,12 @@ pub fn vqt(
         }
         fft.process(&mut kernel.to_vec());
 
-        for t in 0..S_stft.shape()[1] {
-            S_vqt[[k, t]] = S_stft.slice(s![.., t]).iter().zip(kernel.iter()).map(|(&s, &k)| s * k.conj()).sum();
+        for t in 0..s_stft.shape()[1] {
+            s_vqt[[k, t]] = s_stft.slice(s![.., t]).iter().zip(kernel.iter()).map(|(&s, &k)| s * k.conj()).sum();
         }
     }
 
-    Ok(S_vqt)
+    Ok(s_vqt)
 }
 
 /// Computes the Fourier Modulation Transform (FMT) of a signal.
@@ -614,7 +614,7 @@ pub fn fmt(
     let sr = 44100;
     let t_min = t_min.unwrap_or(0.005);
     let n_fmt = n_fmt.unwrap_or(5);
-    let kind = kind.unwrap_or("cos");
+    let _kind = kind.unwrap_or("cos");
     let beta = beta.unwrap_or(2.0);
     let hop_length = (sr as f32 * t_min).round() as usize;
 
@@ -626,7 +626,7 @@ pub fn fmt(
     }
 
     let n_frames = (y.len() - hop_length) / hop_length + 1;
-    let mut S = Array2::zeros((n_fmt, n_frames));
+    let mut s = Array2::zeros((n_fmt, n_frames));
     let window = hann_window(hop_length);
 
     for t in 0..n_frames {
@@ -643,11 +643,11 @@ pub fn fmt(
                 sum_im += sample * w * phase.sin();
             }
             let mag = Complex::new(sum_re, sum_im).norm() / hop_length as f32;
-            S[[k, t]] = mag.powf(beta);
+            s[[k, t]] = mag.powf(beta);
         }
     }
 
-    Ok(S)
+    Ok(s)
 }
 
 /// Generates a Hann window vector.
@@ -695,7 +695,7 @@ fn stft_with_derivative(
     let n_frames = (y.len() - n_fft) / hop_length + 1;
     let mut planner = FftPlanner::new();
     let fft = planner.plan_fft_forward(n_fft);
-    let mut S = Array2::zeros((n_fft / 2 + 1, n_frames));
+    let mut s = Array2::zeros((n_fft / 2 + 1, n_frames));
     let window = hann_window(n_fft);
     let deriv_window = if time_derivative {
         (0..n_fft).map(|i| i as f32 * window[i]).collect::<Vec<_>>()
@@ -710,10 +710,10 @@ fn stft_with_derivative(
         buffer.resize(n_fft, Complex::new(0.0, 0.0));
         fft.process(&mut buffer);
         for f in 0..n_fft / 2 + 1 {
-            S[[f, t]] = buffer[f];
+            s[[f, t]] = buffer[f];
         }
     }
-    Ok(S)
+    Ok(s)
 }
 
 /// Designs a Butterworth bandpass filter.
@@ -875,7 +875,7 @@ pub fn iirt(
     }
 
     let n_frames = (y.len() - win_length) / hop_length + 1;
-    let mut S = Array2::zeros((n_bands, n_frames));
+    let mut s = Array2::zeros((n_bands, n_frames));
     let fmin = 32.70;
 
     for b in 0..n_bands {
@@ -887,11 +887,11 @@ pub fn iirt(
             let start = t * hop_length;
             let frame = &y[start..(start + win_length).min(y.len())];
             let filtered = filter(frame, &b_coeffs, &a_coeffs);
-            S[[b, t]] = filtered.iter().map(|&x| x.powi(2)).sum::<f32>().sqrt() / win_length as f32;
+            s[[b, t]] = filtered.iter().map(|&x| x.powi(2)).sum::<f32>().sqrt() / win_length as f32;
         }
     }
 
-    Ok(S)
+    Ok(s)
 }
 
 /// Applies an IIR filter to a signal.

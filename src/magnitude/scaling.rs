@@ -25,7 +25,7 @@ use crate::AudioError;
 /// assert!(S_db[[0, 1]] > 6.0 && S_db[[0, 1]] < 7.0); // ~6.021 dB
 /// ```
 pub fn amplitude_to_db(
-    S: &Array2<f32>,
+    s: &Array2<f32>,
     ref_val: Option<f32>,
     amin: Option<f32>,
     top_db: Option<f32>,
@@ -34,7 +34,7 @@ pub fn amplitude_to_db(
     let amin_val = amin.unwrap_or(1e-5);
     let top_db_val = top_db.unwrap_or(80.0);
 
-    if S.is_empty() {
+    if s.is_empty() {
         return Err(AudioError::InsufficientData("Spectrogram is empty".to_string()));
     }
     if ref_val <= 0.0 {
@@ -46,11 +46,11 @@ pub fn amplitude_to_db(
     if top_db_val <= 0.0 {
         return Err(AudioError::InvalidInput("Top dB must be positive".to_string()));
     }
-    if S.iter().any(|&x| x < 0.0) {
+    if s.iter().any(|&x| x < 0.0) {
         return Err(AudioError::InvalidInput("Spectrogram contains negative amplitudes".to_string()));
     }
 
-    Ok(S.mapv(|x| {
+    Ok(s.mapv(|x| {
         let x_clipped = x.max(amin_val);
         let db = 20.0 * (x_clipped / ref_val).log10();
         db.max(db.max(-top_db_val))
@@ -79,19 +79,19 @@ pub fn amplitude_to_db(
 /// assert!(S[[0, 1]] > 1.995 && S[[0, 1]] < 2.005); // ~2.0
 /// ```
 pub fn db_to_amplitude(
-    S_db: &Array2<f32>,
+    s_db: &Array2<f32>,
     ref_val: Option<f32>,
 ) -> Result<Array2<f32>, AudioError> {
     let ref_val = ref_val.unwrap_or(1.0);
 
-    if S_db.is_empty() {
+    if s_db.is_empty() {
         return Err(AudioError::InsufficientData("Spectrogram is empty".to_string()));
     }
     if ref_val <= 0.0 {
         return Err(AudioError::InvalidInput("Reference value must be positive".to_string()));
     }
 
-    Ok(S_db.mapv(|x| ref_val * 10.0f32.powf(x / 20.0)))
+    Ok(s_db.mapv(|x| ref_val * 10.0f32.powf(x / 20.0)))
 }
 
 /// Converts power spectrogram to decibels (dB).
@@ -118,7 +118,7 @@ pub fn db_to_amplitude(
 /// assert!(S_db[[0, 1]] > 6.0 && S_db[[0, 1]] < 7.0); // ~6.021 dB
 /// ```
 pub fn power_to_db(
-    S: &Array2<f32>,
+    s: &Array2<f32>,
     ref_val: Option<f32>,
     amin: Option<f32>,
     top_db: Option<f32>,
@@ -127,7 +127,7 @@ pub fn power_to_db(
     let amin_val = amin.unwrap_or(1e-10);
     let top_db_val = top_db.unwrap_or(80.0);
 
-    if S.is_empty() {
+    if s.is_empty() {
         return Err(AudioError::InsufficientData("Spectrogram is empty".to_string()));
     }
     if ref_val <= 0.0 {
@@ -139,11 +139,11 @@ pub fn power_to_db(
     if top_db_val <= 0.0 {
         return Err(AudioError::InvalidInput("Top dB must be positive".to_string()));
     }
-    if S.iter().any(|&x| x < 0.0) {
+    if s.iter().any(|&x| x < 0.0) {
         return Err(AudioError::InvalidInput("Spectrogram contains negative power values".to_string()));
     }
 
-    Ok(S.mapv(|x| {
+    Ok(s.mapv(|x| {
         let x_clipped = x.max(amin_val);
         let db = 10.0 * (x_clipped / ref_val).log10();
         db.max(db.max(-top_db_val))
@@ -172,19 +172,19 @@ pub fn power_to_db(
 /// assert!(S[[0, 1]] > 3.995 && S[[0, 1]] < 4.005); // ~4.0
 /// ```
 pub fn db_to_power(
-    S_db: &Array2<f32>,
+    s_db: &Array2<f32>,
     ref_val: Option<f32>,
 ) -> Result<Array2<f32>, AudioError> {
     let ref_val = ref_val.unwrap_or(1.0);
 
-    if S_db.is_empty() {
+    if s_db.is_empty() {
         return Err(AudioError::InsufficientData("Spectrogram is empty".to_string()));
     }
     if ref_val <= 0.0 {
         return Err(AudioError::InvalidInput("Reference value must be positive".to_string()));
     }
 
-    Ok(S_db.mapv(|x| ref_val * 10.0f32.powf(x / 10.0)))
+    Ok(s_db.mapv(|x| ref_val * 10.0f32.powf(x / 10.0)))
 }
 
 /// Applies perceptual frequency weighting to a spectrogram.
@@ -209,40 +209,40 @@ pub fn db_to_power(
 /// let S_weighted = perceptual_weighting(&S, &freqs, None).unwrap();
 /// ```
 pub fn perceptual_weighting(
-    S: &Array2<f32>,
+    s: &Array2<f32>,
     frequencies: &[f32],
     kind: Option<&str>,
 ) -> Result<Array2<f32>, AudioError> {
-    if S.is_empty() {
+    if s.is_empty() {
         return Err(AudioError::InsufficientData("Spectrogram is empty".to_string()));
     }
-    if frequencies.len() != S.shape()[0] {
+    if frequencies.len() != s.shape()[0] {
         return Err(AudioError::InvalidInput(format!(
             "Frequency length {} does not match spectrogram rows {}",
-            frequencies.len(), S.shape()[0]
+            frequencies.len(), s.shape()[0]
         )));
     }
-    if S.iter().any(|&x| x < 0.0) {
+    if s.iter().any(|&x| x < 0.0) {
         return Err(AudioError::InvalidInput("Spectrogram contains negative values".to_string()));
     }
 
     let weights = match kind.unwrap_or("A") {
-        "A" => A_weighting(frequencies, None)?,
-        "B" => B_weighting(frequencies, None)?,
-        "C" => C_weighting(frequencies, None)?,
-        "D" => D_weighting(frequencies, None)?,
+        "A" => a_weighting(frequencies, None)?,
+        "B" => b_weighting(frequencies, None)?,
+        "C" => c_weighting(frequencies, None)?,
+        "D" => d_weighting(frequencies, None)?,
         k => return Err(AudioError::InvalidInput(format!("Unknown weighting kind: {}", k))),
     };
 
-    let mut S_weighted = Array2::zeros(S.dim());
-    for f in 0..S.shape()[0] {
+    let mut s_weighted = Array2::zeros(s.dim());
+    for f in 0..s.shape()[0] {
         let w = weights[f];
-        for t in 0..S.shape()[1] {
-            S_weighted[[f, t]] = S[[f, t]] * w;
+        for t in 0..s.shape()[1] {
+            s_weighted[[f, t]] = s[[f, t]] * w;
         }
     }
 
-    Ok(S_weighted)
+    Ok(s_weighted)
 }
 
 /// Computes frequency weighting coefficients for a given type.
@@ -267,10 +267,10 @@ pub fn frequency_weighting(
     kind: Option<&str>,
 ) -> Result<Vec<f32>, AudioError> {
     match kind.unwrap_or("A") {
-        "A" => A_weighting(frequencies, None),
-        "B" => B_weighting(frequencies, None),
-        "C" => C_weighting(frequencies, None),
-        "D" => D_weighting(frequencies, None),
+        "A" => a_weighting(frequencies, None),
+        "B" => b_weighting(frequencies, None),
+        "C" => c_weighting(frequencies, None),
+        "D" => d_weighting(frequencies, None),
         k => Err(AudioError::InvalidInput(format!("Unknown weighting kind: {}", k))),
     }
 }
@@ -308,10 +308,10 @@ pub fn multi_frequency_weighting(
     let mut results = Vec::with_capacity(kinds.len());
     for &kind in kinds {
         let weights = match kind {
-            "A" => A_weighting(frequencies, None)?,
-            "B" => B_weighting(frequencies, None)?,
-            "C" => C_weighting(frequencies, None)?,
-            "D" => D_weighting(frequencies, None)?,
+            "A" => a_weighting(frequencies, None)?,
+            "B" => b_weighting(frequencies, None)?,
+            "C" => c_weighting(frequencies, None)?,
+            "D" => d_weighting(frequencies, None)?,
             k => return Err(AudioError::InvalidInput(format!("Unknown weighting kind: {}", k))),
         };
         results.push(weights);
@@ -338,7 +338,7 @@ pub fn multi_frequency_weighting(
 /// let weights = A_weighting(&freqs, None).unwrap();
 /// assert!(weights[0] > 0.0);
 /// ```
-pub fn A_weighting(
+pub fn a_weighting(
     frequencies: &[f32],
     min_db: Option<f32>,
 ) -> Result<Vec<f32>, AudioError> {
@@ -387,7 +387,7 @@ pub fn A_weighting(
 /// let weights = B_weighting(&freqs, None).unwrap();
 /// assert!(weights[0] > 0.0);
 /// ```
-pub fn B_weighting(
+pub fn b_weighting(
     frequencies: &[f32],
     min_db: Option<f32>,
 ) -> Result<Vec<f32>, AudioError> {
@@ -435,7 +435,7 @@ pub fn B_weighting(
 /// let weights = C_weighting(&freqs, None).unwrap();
 /// assert!(weights[0] > 0.0);
 /// ```
-pub fn C_weighting(
+pub fn c_weighting(
     frequencies: &[f32],
     min_db: Option<f32>,
 ) -> Result<Vec<f32>, AudioError> {
@@ -483,7 +483,7 @@ pub fn C_weighting(
 /// let weights = D_weighting(&freqs, None).unwrap();
 /// assert!(weights[0] > 0.0);
 /// ```
-pub fn D_weighting(
+pub fn d_weighting(
     frequencies: &[f32],
     min_db: Option<f32>,
 ) -> Result<Vec<f32>, AudioError> {
@@ -536,7 +536,7 @@ pub fn D_weighting(
 /// let P = pcen(&S, None, None, None, None).unwrap();
 /// ```
 pub fn pcen(
-    S: &Array2<f32>,
+    s: &Array2<f32>,
     sr: Option<u32>,
     hop_length: Option<usize>,
     gain: Option<f32>,
@@ -547,39 +547,39 @@ pub fn pcen(
     let gain = gain.unwrap_or(0.8);
     let bias = bias.unwrap_or(10.0);
     let eps = 1e-6;
-    let s = 0.025;
+    let s_coef = 0.025;
 
-    if S.is_empty() {
+    if s.is_empty() {
         return Err(AudioError::InsufficientData("Spectrogram is empty".to_string()));
     }
-    if S.iter().any(|&x| x < 0.0) {
+    if s.iter().any(|&x| x < 0.0) {
         return Err(AudioError::InvalidInput("Spectrogram contains negative values".to_string()));
     }
     if gain < 0.0 || bias < 0.0 {
         return Err(AudioError::InvalidInput("Gain and bias must be non-negative".to_string()));
     }
 
-    let n_freqs = S.shape()[0];
-    let n_frames = S.shape()[1];
-    let alpha = (-s * sr as f32 / hop_length as f32).exp();
+    let n_freqs = s.shape()[0];
+    let n_frames = s.shape()[1];
+    let alpha = (-s_coef * sr as f32 / hop_length as f32).exp();
     let one_minus_alpha = 1.0 - alpha;
 
-    let mut M = Array2::zeros((n_freqs, n_frames));
-    let mut P = Array2::zeros((n_freqs, n_frames));
+    let mut m = Array2::zeros((n_freqs, n_frames));
+    let mut p = Array2::zeros((n_freqs, n_frames));
 
     for f in 0..n_freqs {
-        M[[f, 0]] = S[[f, 0]];
+        m[[f, 0]] = s[[f, 0]];
         for t in 1..n_frames {
-            M[[f, t]] = alpha * M[[f, t - 1]] + one_minus_alpha * S[[f, t]];
+            m[[f, t]] = alpha * m[[f, t - 1]] + one_minus_alpha * s[[f, t]];
         }
     }
 
     for f in 0..n_freqs {
         for t in 0..n_frames {
-            let m = M[[f, t]] + eps;
-            P[[f, t]] = (S[[f, t]] / m).powf(gain) + bias - bias;
+            let m = m[[f, t]] + eps;
+            p[[f, t]] = (s[[f, t]] / m).powf(gain) + bias - bias;
         }
     }
 
-    Ok(P)
+    Ok(p)
 }

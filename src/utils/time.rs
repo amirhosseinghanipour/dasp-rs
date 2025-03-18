@@ -248,9 +248,9 @@ pub fn blocks_to_time(blocks: &[usize], block_length: usize, hop_length: Option<
 /// let samples = samples_like(&X, None, None, None);
 /// assert_eq!(samples, vec![0, 512]);
 /// ```
-pub fn samples_like(X: &Array2<f32>, hop_length: Option<usize>, _n_fft: Option<usize>, _axis: Option<isize>) -> Vec<usize> {
+pub fn samples_like(x: &Array2<f32>, hop_length: Option<usize>, _n_fft: Option<usize>, _axis: Option<isize>) -> Vec<usize> {
     let hop = hop_length.unwrap_or(512);
-    (0..X.shape()[1]).map(|i| i * hop).collect()
+    (0..x.shape()[1]).map(|i| i * hop).collect()
 }
 
 /// Generates time values corresponding to the columns of a 2D array.
@@ -272,8 +272,8 @@ pub fn samples_like(X: &Array2<f32>, hop_length: Option<usize>, _n_fft: Option<u
 /// let times = times_like(&X, None, None, None, None);
 /// assert_eq!(times, vec![0.0, 0.011609977]); // 512 hop / 44100 Hz
 /// ```
-pub fn times_like(X: &Array2<f32>, sr: Option<u32>, hop_length: Option<usize>, _n_fft: Option<usize>, _axis: Option<isize>) -> Vec<f32> {
+pub fn times_like(x: &Array2<f32>, sr: Option<u32>, hop_length: Option<usize>, _n_fft: Option<usize>, _axis: Option<isize>) -> Vec<f32> {
     let sample_rate = sr.unwrap_or(44100);
     let hop = hop_length.unwrap_or(512);
-    (0..X.shape()[1]).map(|i| i as f32 * hop as f32 / sample_rate as f32).collect()
+    (0..x.shape()[1]).map(|i| i as f32 * hop as f32 / sample_rate as f32).collect()
 }

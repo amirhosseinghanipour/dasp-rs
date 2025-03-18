@@ -201,14 +201,14 @@ pub fn yin(
 pub fn estimate_tuning(
     y: Option<&[f32]>,
     sr: Option<u32>,
-    S: Option<&Array2<f32>>,
+    s: Option<&Array2<f32>>,
     n_fft: Option<usize>,
 ) -> Result<f32, AudioError> {
     let sr = sr.unwrap_or(44100);
     let n_fft = n_fft.unwrap_or(2048);
     let hop_length = n_fft / 4;
 
-    let S = match (y, S) {
+    let s = match (y, s) {
         (Some(y), None) => {
             if y.len() < n_fft {
                 return Err(AudioError::InsufficientData("Signal too short for n_fft".to_string()));
@@ -217,11 +217,11 @@ pub fn estimate_tuning(
                 .map_err(|e| AudioError::ComputationFailed(format!("STFT failed: {}", e)))?
                 .mapv(|x| x.norm())
         }
-        (None, Some(S)) => S.to_owned(),
+        (None, Some(s)) => s.to_owned(),
         _ => return Err(AudioError::InvalidInput("Must provide either y or S".to_string())),
     };
 
-    let (pitches, mags) = piptrack(Some(&y.unwrap_or(&[])), Some(sr), Some(&S), Some(n_fft), Some(hop_length))?;
+    let (pitches, mags) = piptrack(Some(y.unwrap_or(&[])), Some(sr), Some(&s), Some(n_fft), Some(hop_length))?;
     let mut total_deviation = 0.0;
     let mut total_weight = 0.0;
 
@@ -311,7 +311,7 @@ pub fn pitch_tuning(
 pub fn piptrack(
     y: Option<&[f32]>,
     sr: Option<u32>,
-    S: Option<&Array2<f32>>,
+    s: Option<&Array2<f32>>,
     n_fft: Option<usize>,
     hop_length: Option<usize>,
 ) -> Result<(Array2<f32>, Array2<f32>), AudioError> {
@@ -319,7 +319,7 @@ pub fn piptrack(
     let n_fft = n_fft.unwrap_or(2048);
     let hop_length = hop_length.unwrap_or(n_fft / 4);
 
-    let S = match (y, S) {
+    let s = match (y, s) {
         (Some(y), None) => {
             if y.len() < n_fft {
                 return Err(AudioError::InsufficientData("Signal too short for n_fft".to_string()));
@@ -328,20 +328,20 @@ pub fn piptrack(
                 .map_err(|e| AudioError::ComputationFailed(format!("STFT failed: {}", e)))?
                 .mapv(|x| x.norm())
         }
-        (None, Some(S)) => S.to_owned(),
+        (None, Some(s)) => s.to_owned(),
         _ => return Err(AudioError::InvalidInput("Must provide either y or S".to_string())),
     };
 
     let freqs = fft_frequencies(Some(sr), Some(n_fft));
-    if freqs.len() != S.shape()[0] {
+    if freqs.len() != s.shape()[0] {
         return Err(AudioError::ComputationFailed("Frequency bins mismatch".to_string()));
     }
 
-    let mut pitches = Array2::zeros(S.dim());
-    let mut mags = Array2::zeros(S.dim());
+    let mut pitches = Array2::zeros(s.dim());
+    let mut mags = Array2::zeros(s.dim());
 
-    for t in 0..S.shape()[1] {
-        let frame = S.column(t);
+    for t in 0..s.shape()[1] {
+        let frame = s.column(t);
         let max_idx = frame.iter().position(|&x| x == *frame.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap()).unwrap_or(0);
         let peak_mag = frame[max_idx];
         if peak_mag > 1e-6 {

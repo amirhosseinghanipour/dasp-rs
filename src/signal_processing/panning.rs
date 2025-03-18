@@ -47,7 +47,7 @@ pub fn stereo_pan(signal: &AudioData, pan: f32) -> Result<AudioData, PanningErro
     if signal.channels != 1 {
         return Err(PanningError::NotMono(signal.channels));
     }
-    if pan < -1.0 || pan > 1.0 {
+    if !(-1.0..=1.0).contains(&pan) {
         return Err(PanningError::InvalidParameter(
             "Pan value must be between -1.0 and 1.0".to_string(),
         ));
@@ -158,7 +158,7 @@ pub fn multi_channel_pan(
                 gains[2] = (azimuth - 315.0) / 45.0; // Center fades in
             } else if azimuth >= 225.0 {
                 gains[0] = (azimuth - 225.0) / 90.0; // FL
-            } else if azimuth >= 45.0 && azimuth <= 135.0 {
+            } else if (45.0..=135.0).contains(&azimuth) {
                 gains[0] = 0.0; // No FL contribution in this range
             } else if azimuth <= 45.0 {
                 gains[0] = 0.0; // No FL at front center

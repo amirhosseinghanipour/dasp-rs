@@ -13,7 +13,7 @@
 /// let notes = key_to_notes("C:maj", None, None);
 /// assert_eq!(notes, vec!["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]);
 /// ```
-pub fn key_to_notes(key: &str, _unicode: Option<bool>, _natural: Option<bool>) -> Vec<String> {
+pub fn key_to_notes(_key: &str, _unicode: Option<bool>, _natural: Option<bool>) -> Vec<String> {
     let notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     notes.iter().map(|&n| n.to_string()).collect()
 }

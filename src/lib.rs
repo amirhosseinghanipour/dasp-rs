@@ -33,6 +33,8 @@
 //! ## Modules
 //! See the individual module documentation for detailed information on available functionality.
 
+#![warn(clippy::all, clippy::pedantic, clippy::nursery)]
+
 /// Audio input/output module.
 ///
 /// Provides functions for loading and saving audio files, as well as handling audio data structures.

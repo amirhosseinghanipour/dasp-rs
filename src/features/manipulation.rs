@@ -110,13 +110,13 @@ pub fn stack_memory(
 /// ```
 pub fn temporal_kurtosis(
     y: Option<&[f32]>,
-    S: Option<&Array2<f32>>,
+    s: Option<&Array2<f32>>,
     frame_length: Option<usize>,
     hop_length: Option<usize>,
 ) -> Array1<f32> {
     let frame_len = frame_length.unwrap_or(2048);
     let hop = hop_length.unwrap_or(frame_len / 4);
-    match (y, S) {
+    match (y, s) {
         (Some(y), None) => {
             let n_frames = (y.len() - frame_len) / hop + 1;
             let mut kurtosis = Array1::zeros(n_frames);
@@ -130,7 +130,7 @@ pub fn temporal_kurtosis(
             }
             kurtosis
         }
-        (None, Some(S)) => S.axis_iter(Axis(1)).map(|frame| {
+        (None, Some(s)) => s.axis_iter(Axis(1)).map(|frame| {
             let mean = frame.mean().unwrap_or(0.0);
             let m2 = frame.mapv(|x| (x - mean).powi(2)).mean().unwrap_or(0.0);
             let m4 = frame.mapv(|x| (x - mean).powi(4)).mean().unwrap_or(0.0);

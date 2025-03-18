@@ -56,9 +56,9 @@ pub fn hz_to_midi(frequencies: &[f32]) -> Vec<f32> {
 /// let svaras = hz_to_svara_h(&freqs, 261.63, Some(true));
 /// assert_eq!(svaras, vec!["S", "R2"]);
 /// ```
-pub fn hz_to_svara_h(frequencies: &[f32], Sa: f32, abbr: Option<bool>) -> Vec<String> {
+pub fn hz_to_svara_h(frequencies: &[f32], sa: f32, abbr: Option<bool>) -> Vec<String> {
     let abbr = abbr.unwrap_or(false);
-    let midi_Sa = hz_to_midi(&[Sa])[0];
+    let midi_sa = hz_to_midi(&[sa])[0];
     let midi_notes = hz_to_midi(frequencies);
     let svara_names = if abbr {
         vec!["S", "R1", "R2", "G1", "G2", "M1", "M2", "P", "D1", "D2", "N1", "N2"]
@@ -69,7 +69,7 @@ pub fn hz_to_svara_h(frequencies: &[f32], Sa: f32, abbr: Option<bool>) -> Vec<St
              "Shuddha Nishadam", "Kaisiki Nishadam"]
     };
     midi_notes.iter().map(|&m| {
-        let degree = ((m - midi_Sa + 0.5).round() as i32 % 12 + 12) % 12;
+        let degree = ((m - midi_sa + 0.5).round() as i32 % 12 + 12) % 12;
         svara_names[degree as usize].to_string()
     }).collect()
 }
@@ -90,13 +90,13 @@ pub fn hz_to_svara_h(frequencies: &[f32], Sa: f32, abbr: Option<bool>) -> Vec<St
 /// let svaras = hz_to_svara_c(&freqs, 261.63, None);
 /// assert_eq!(svaras, vec!["S", "R2"]);
 /// ```
-pub fn hz_to_svara_c(frequencies: &[f32], Sa: f32, mela: Option<usize>) -> Vec<String> {
+pub fn hz_to_svara_c(frequencies: &[f32], sa: f32, mela: Option<usize>) -> Vec<String> {
     let mela = mela.unwrap_or(29);
     let degrees = notation::mela_to_degrees(mela);
-    let midi_Sa = hz_to_midi(&[Sa])[0];
+    let midi_sa = hz_to_midi(&[sa])[0];
     let midi_notes = hz_to_midi(frequencies);
     midi_notes.iter().map(|&m| {
-        let semitone = ((m - midi_Sa + 0.5).round() as i32 % 12 + 12) % 12;
+        let semitone = ((m - midi_sa + 0.5).round() as i32 % 12 + 12) % 12;
         let idx = degrees.iter().position(|&d| d == semitone as usize).unwrap_or(0);
         let base = match idx {
             0 => "S", 1..=3 => "R", 4..=6 => "G", 7 => "M", 8 => "P", 9..=11 => "D", 12..=14 => "N", _ => "S",
@@ -196,10 +196,10 @@ pub fn midi_to_note(midi: &[f32], octave: Option<bool>, _cents: Option<bool>, _k
 /// let svaras = midi_to_svara_h(&midi, 261.63, Some(true), None);
 /// assert_eq!(svaras, vec!["S", "R2"]);
 /// ```
-pub fn midi_to_svara_h(midi: &[f32], Sa: f32, abbr: Option<bool>, octave: Option<bool>) -> Vec<String> {
+pub fn midi_to_svara_h(midi: &[f32], sa: f32, abbr: Option<bool>, octave: Option<bool>) -> Vec<String> {
     let abbr = abbr.unwrap_or(false);
     let octave = octave.unwrap_or(false);
-    let midi_Sa = hz_to_midi(&[Sa])[0];
+    let midi_sa = hz_to_midi(&[sa])[0];
     let svara_names = if abbr {
         vec!["S", "R1", "R2", "G1", "G2", "M1", "M2", "P", "D1", "D2", "N1", "N2"]
     } else {
@@ -209,8 +209,8 @@ pub fn midi_to_svara_h(midi: &[f32], Sa: f32, abbr: Option<bool>, octave: Option
              "Shuddha Nishadam", "Kaisiki Nishadam"]
     };
     midi.iter().map(|&m| {
-        let degree = ((m - midi_Sa + 0.5).round() as i32 % 12 + 12) % 12;
-        let oct = if octave { format!("{}", (m - midi_Sa).round() as i32 / 12) } else { "".to_string() };
+        let degree = ((m - midi_sa + 0.5).round() as i32 % 12 + 12) % 12;
+        let oct = if octave { format!("{}", (m - midi_sa).round() as i32 / 12) } else { "".to_string() };
         format!("{}{}", svara_names[degree as usize], oct)
     }).collect()
 }
@@ -232,13 +232,13 @@ pub fn midi_to_svara_h(midi: &[f32], Sa: f32, abbr: Option<bool>, octave: Option
 /// let svaras = midi_to_svara_c(&midi, 261.63, None, Some(true));
 /// assert_eq!(svaras, vec!["S", "R2"]);
 /// ```
-pub fn midi_to_svara_c(midi: &[f32], Sa: f32, mela: Option<usize>, abbr: Option<bool>) -> Vec<String> {
+pub fn midi_to_svara_c(midi: &[f32], sa: f32, mela: Option<usize>, abbr: Option<bool>) -> Vec<String> {
     let mela = mela.unwrap_or(29);
     let abbr = abbr.unwrap_or(false);
     let degrees = notation::mela_to_degrees(mela);
-    let midi_Sa = hz_to_midi(&[Sa])[0];
+    let midi_sa = hz_to_midi(&[sa])[0];
     midi.iter().map(|&m| {
-        let semitone = ((m - midi_Sa + 0.5).round() as i32 % 12 + 12) % 12;
+        let semitone = ((m - midi_sa + 0.5).round() as i32 % 12 + 12) % 12;
         let idx = degrees.iter().position(|&d| d == semitone as usize).unwrap_or(0);
         let base = match idx {
             0 => "S", 1..=3 => "R", 4..=6 => "G", 7 => "M", 8 => "P", 9..=11 => "D", 12..=14 => "N", _ => "S",
@@ -313,9 +313,9 @@ pub fn note_to_midi(note: &[&str], round_midi: Option<bool>) -> Vec<f32> {
 /// let svaras = note_to_svara_h(&notes, 261.63, Some(true));
 /// assert_eq!(svaras, vec!["S", "R2"]);
 /// ```
-pub fn note_to_svara_h(notes: &[&str], Sa: f32, abbr: Option<bool>) -> Vec<String> {
+pub fn note_to_svara_h(notes: &[&str], sa: f32, abbr: Option<bool>) -> Vec<String> {
     let midi = note_to_midi(notes, Some(true));
-    hz_to_svara_h(&midi_to_hz(&midi), Sa, abbr)
+    hz_to_svara_h(&midi_to_hz(&midi), sa, abbr)
 }
 
 /// Converts note names to Carnatic svara notation.
@@ -335,9 +335,9 @@ pub fn note_to_svara_h(notes: &[&str], Sa: f32, abbr: Option<bool>) -> Vec<Strin
 /// let svaras = note_to_svara_c(&notes, 261.63, None, Some(true));
 /// assert_eq!(svaras, vec!["S", "R2"]);
 /// ```
-pub fn note_to_svara_c(notes: &[&str], Sa: f32, mela: Option<usize>, abbr: Option<bool>) -> Vec<String> {
+pub fn note_to_svara_c(notes: &[&str], sa: f32, mela: Option<usize>, _abbr: Option<bool>) -> Vec<String> {
     let midi = note_to_midi(notes, Some(true));
-    hz_to_svara_c(&midi_to_hz(&midi), Sa, mela)
+    hz_to_svara_c(&midi_to_hz(&midi), sa, mela)
 }
 
 /// Converts frequencies in Hz to mel scale.
@@ -439,8 +439,8 @@ pub fn octs_to_hz(octs: &[f32], tuning: Option<f32>, _bins_per_octave: Option<us
 /// let tuning = A4_to_tuning(432.0, None);
 /// assert!(tuning < 0.0);
 /// ```
-pub fn A4_to_tuning(A4: f32, _bins_per_octave: Option<usize>) -> f32 {
-    12.0 * (A4 / 440.0).log2()
+pub fn a4_to_tuning(a4: f32, _bins_per_octave: Option<usize>) -> f32 {
+    12.0 * (a4 / 440.0).log2()
 }
 
 /// Converts a tuning offset in semitones to an A4 frequency.
@@ -457,7 +457,7 @@ pub fn A4_to_tuning(A4: f32, _bins_per_octave: Option<usize>) -> f32 {
 /// let A4 = tuning_to_A4(-0.317667, None);
 /// assert!(A4 > 431.0 && A4 < 433.0);
 /// ```
-pub fn tuning_to_A4(tuning: f32, _bins_per_octave: Option<usize>) -> f32 {
+pub fn tuning_to_a4(tuning: f32, _bins_per_octave: Option<usize>) -> f32 {
     440.0 * 2.0f32.powf(tuning / 12.0)
 }
 

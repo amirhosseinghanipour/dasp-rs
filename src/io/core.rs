@@ -286,38 +286,36 @@ pub fn stream_lazy<P: AsRef<Path>>(
         for (i, sample) in samples_iter.enumerate() {
             chunk.push(sample);
 
-            if (i + 1) % hop == 0 || chunk.len() >= frame_length {
-                if chunk.len() >= frame_length {
-                    let indices: Vec<usize> = (0..chunk.len())
-                        .step_by(hop)
-                        .take(block_length - block_count)
-                        .collect();
+            if ((i + 1) % hop == 0 || chunk.len() >= frame_length) && chunk.len() >= frame_length {
+                let indices: Vec<usize> = (0..chunk.len())
+                    .step_by(hop)
+                    .take(block_length - block_count)
+                    .collect();
 
-                    let blocks: Vec<Vec<f32>> = indices
-                        .par_iter()
-                        .map(|&start| {
-                            let end = std::cmp::min(start + frame_length, chunk.len());
-                            let mut buffer = Vec::with_capacity(frame_length);
-                            buffer.extend_from_slice(&chunk[start..end]);
-                            buffer.resize(frame_length, 0.0);
-                            buffer
-                        })
-                        .collect();
+                let blocks: Vec<Vec<f32>> = indices
+                    .par_iter()
+                    .map(|&start| {
+                        let end = std::cmp::min(start + frame_length, chunk.len());
+                        let mut buffer = Vec::with_capacity(frame_length);
+                        buffer.extend_from_slice(&chunk[start..end]);
+                        buffer.resize(frame_length, 0.0);
+                        buffer
+                    })
+                    .collect();
 
-                    // Send blocks to the receiver
-                    for block in blocks {
-                        if tx.send(block).is_err() {
-                            return;
-                        }
-                        block_count += 1;
-                        if block_count >= block_length {
-                            return;
-                        }
+                // Send blocks to the receiver
+                for block in blocks {
+                    if tx.send(block).is_err() {
+                        return;
                     }
-
-                    let last_hop = (indices.last().unwrap_or(&0) + hop).min(chunk.len());
-                    chunk.drain(..last_hop);
+                    block_count += 1;
+                    if block_count >= block_length {
+                        return;
+                    }
                 }
+
+                let last_hop = (indices.last().unwrap_or(&0) + hop).min(chunk.len());
+                chunk.drain(..last_hop);
             }
         }
 
