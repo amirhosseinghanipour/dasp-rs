@@ -65,7 +65,7 @@ pub fn interp_harmonics(x: &[f32], freqs: &[f32], harmonics: &[f32]) -> Result<A
                 if target_freq <= *freqs.last().unwrap() {
                     let left_idx = freqs.binary_search_by(|&x| x.partial_cmp(&target_freq).unwrap())
                         .unwrap_or_else(|e| e.saturating_sub(1));
-                    let left_idx = left_idx.min(n_bins - 2); // Ensure right_idx is valid
+                    let left_idx = left_idx.min(n_bins - 2);
                     let right_idx = left_idx + 1;
                     let left_freq = freqs[left_idx];
                     let right_freq = freqs[right_idx];
@@ -241,7 +241,7 @@ pub fn phase_vocoder(
 
     let new_frames = ((orig_frames as f32 * hop as f32) / rate / hop as f32).ceil() as usize;
     let mut output = Array2::zeros((n_bins, new_frames));
-    let mut phase_acc = Array2::zeros((n_bins, 1)); // Initial phase
+    let mut phase_acc = Array2::zeros((n_bins, 1));
 
     let omega = (0..n_bins).map(|k| 2.0 * std::f32::consts::PI * k as f32 / n_fft as f32).collect::<Vec<f32>>();
 
