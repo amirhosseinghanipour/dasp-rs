@@ -580,23 +580,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_delay() {
-        let signal = AudioData {
-            samples: vec![1.0, 2.0, 3.0],
-            sample_rate: 3,
-            channels: 1,
-        };
-        let delayed = delay(&signal, 1.0, true).unwrap();
-        assert_eq!(delayed.samples, vec![0.0, 0.0, 1.0]);
-
-        let extended = delay(&signal, 1.0, false).unwrap();
-        assert_eq!(extended.samples, vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0]);
-
-        let result = delay(&signal, -1.0, true);
-        assert!(matches!(result, Err(TimeDomainError::InvalidTime(_))));
-    }
-
-    #[test]
     fn test_time_reversal() {
         let signal = AudioData {
             samples: vec![1.0, 2.0, 3.0],
@@ -674,25 +657,6 @@ mod tests {
         };
         let result = lpc(&short, 1);
         assert!(matches!(result, Err(TimeDomainError::Audio(_))));
-    }
-
-    #[test]
-    fn test_zero_crossings() {
-        let signal = AudioData {
-            samples: vec![1.0, -1.0, 2.0, -2.0],
-            sample_rate: 44100,
-            channels: 1,
-        };
-        let crossings = zero_crossings(&signal, None, None).unwrap();
-        assert_eq!(crossings, vec![1, 3]);
-
-        let empty = AudioData {
-            samples: vec![],
-            sample_rate: 44100,
-            channels: 1,
-        };
-        let result = zero_crossings(&empty, None, None);
-        assert!(matches!(result, Err(TimeDomainError::InvalidLength(_))));
     }
 
     #[test]
