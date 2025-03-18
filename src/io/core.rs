@@ -349,3 +349,102 @@ pub fn get_sr<P: AsRef<Path>>(path: P) -> Result<u32, AudioError> {
     let reader = WavReader::open(path)?;
     Ok(reader.spec().sample_rate)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn test_load_basic() {
+        let path = Path::new("test.wav");
+        let audio = load(path, None, Some(true), None, None).unwrap();
+        
+        assert!(audio.samples.len() >= 5, "Expected at least 5 samples");
+        assert_eq!(audio.sample_rate, 44100, "Expected 44100 Hz sample rate");
+        assert_eq!(audio.channels, 1, "Expected mono output");
+    }
+
+    #[test]
+    fn test_load_multi_channel_to_mono() {
+        let path = Path::new("test.wav");
+        let audio = load(path, None, Some(true), None, None).unwrap();
+        
+        assert_eq!(audio.channels, 1, "Expected mono output");
+        assert!(audio.samples.len() > 0, "Expected non-empty samples");
+    }
+
+    #[test]
+    fn test_export_to_wav() {
+        let path = Path::new("test_output.wav");
+        let original = load(Path::new("test.wav"), None, Some(true), None, None).unwrap();
+        export_to_wav(path, &original).unwrap();
+        
+        let reloaded = load(path, None, Some(true), None, None).unwrap();
+        assert_eq!(reloaded.samples, original.samples);
+        assert_eq!(reloaded.sample_rate, original.sample_rate);
+        assert_eq!(reloaded.channels, original.channels);
+        
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn test_stream() {
+        let path = Path::new("test.wav");
+        let blocks: Vec<Vec<f32>> = stream(path, 2, 2, Some(2)).unwrap().collect();
+        
+        assert_eq!(blocks.len(), 2, "Expected 2 blocks");
+        assert_eq!(blocks[0].len(), 2, "Expected block size of 2");
+        assert_eq!(blocks[1].len(), 2, "Expected block size of 2");
+        
+        let original = load(path, None, Some(true), None, None).unwrap();
+        assert_eq!(blocks[0], original.samples[0..2]);
+        assert_eq!(blocks[1], original.samples[2..4]);
+    }
+
+    #[test]
+    fn test_stream_lazy() {
+        let path = Path::new("test.wav");
+        let rx = stream_lazy(path, 2, 2, Some(2)).unwrap();
+        let blocks: Vec<Vec<f32>> = rx.into_iter().collect();
+        
+        assert_eq!(blocks.len(), 2, "Expected 2 blocks");
+        assert_eq!(blocks[0].len(), 2, "Expected block size of 2");
+        assert_eq!(blocks[1].len(), 2, "Expected block size of 2");
+        
+        let original = load(path, None, Some(true), None, None).unwrap();
+        assert_eq!(blocks[0], original.samples[0..2]);
+        assert_eq!(blocks[1], original.samples[2..4]);
+    }
+
+    #[test]
+    fn test_stream_lazy_partial_last_block() {
+        let path = Path::new("test.wav");
+        let rx = stream_lazy(path, 3, 2, Some(2)).unwrap(); // May pad if test.wav < 6 samples
+        let blocks: Vec<Vec<f32>> = rx.into_iter().collect();
+        
+        assert!(blocks.len() <= 3, "Expected up to 3 blocks");
+        for block in &blocks {
+            assert_eq!(block.len(), 2, "Expected block size of 2");
+        }
+        
+        let original = load(path, None, Some(true), None, None).unwrap();
+        if original.samples.len() >= 4 {
+            assert_eq!(blocks[0], original.samples[0..2]);
+            assert_eq!(blocks[1], original.samples[2..4]);
+        }
+    }
+
+    #[test]
+    fn test_get_sr() {
+        let path = Path::new("test.wav");
+        let sr = get_sr(path).unwrap();
+        assert_eq!(sr, 44100, "Expected 44100 Hz sample rate");
+    }
+
+    #[test]
+    fn test_load_invalid_path() {
+        let result = load("nonexistent.wav", None, None, None, None);
+        assert!(matches!(result, Err(AudioError::OpenError(_))));
+    }
+}
