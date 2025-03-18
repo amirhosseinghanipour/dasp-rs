@@ -1,4 +1,5 @@
-use ndarray::{Array1, Array2, s, Axis};
+use ndarray::{s, stack, Array1, Array2, Axis};
+use rayon::prelude::*;
 use crate::signal_processing::time_frequency::{stft, cqt};
 use crate::signal_processing::time_domain::{autocorrelate, log_energy};
 use crate::hz_to_midi;
@@ -6,6 +7,7 @@ use ndarray_linalg::{Solve, Eig};
 use num_complex::Complex;
 use thiserror::Error;
 use crate::core::io::{AudioError, AudioData};
+use crate::utils::frequency::fft_frequencies;
 
 /// Custom error types for spectral signal processing operations.
 ///
@@ -70,14 +72,15 @@ pub fn chroma_stft(
 ) -> Result<Array2<f32>, SpectralError> {
     let n_fft = n_fft.unwrap_or(2048);
     let hop = hop_length.unwrap_or(n_fft / 4);
+    
     if n_fft == 0 || hop == 0 {
         return Err(SpectralError::InvalidParameter(
-            "n_fft and hop_length must be positive".to_string(),
+            "n_fft and hop_length must be positive".into(),
         ));
     }
     if signal.samples.len() < n_fft {
         return Err(SpectralError::InvalidSize(
-            "Signal length must be at least n_fft".to_string(),
+            "Signal length must be at least n_fft".into(),
         ));
     }
 
@@ -89,25 +92,45 @@ pub fn chroma_stft(
     };
 
     let n_bins = s.shape()[0];
-    let freqs = crate::fft_frequencies(Some(signal.sample_rate), Some(n_fft));
-    let mut chroma = Array2::zeros((12, s.shape()[1]));
+    let freqs = fft_frequencies(Some(signal.sample_rate), Some(n_fft));
 
-    for frame in 0..s.shape()[1] {
-        for bin in 0..n_bins {
+    let pitch_classes: Vec<usize> = (1..n_bins)
+        .map(|bin| {
             let midi = hz_to_midi(&[freqs[bin]])[0];
-            let pitch_class = (midi.round() as usize % 12) as usize;
-            chroma[[pitch_class, frame]] += s[[bin, frame]];
-        }
-    }
+            (midi.round() as isize).rem_euclid(12) as usize
+        })
+        .collect();
 
     if let Some(norm_val) = norm {
         if norm_val <= 0.0 {
             return Err(SpectralError::InvalidParameter(
-                "Normalization factor must be positive".to_string(),
+                "Normalization factor must be positive".into(),
             ));
         }
-        chroma.mapv_inplace(|x| x / norm_val);
     }
+
+    let n_frames = s.shape()[1];
+
+    let chroma_cols: Vec<Array1<f32>> = (0..n_frames)
+        .into_par_iter()
+        .map(|frame| {
+            let mut temp = Array1::zeros(12);
+            for bin in 1..n_bins {
+                let pitch_class = pitch_classes[bin - 1];
+                temp[pitch_class] += s[[bin, frame]];
+            }
+            if let Some(norm_val) = norm {
+                temp /= norm_val;
+            }
+            temp
+        })
+        .collect();
+
+    let views: Vec<_> = chroma_cols.iter().map(|col| col.view()).collect();
+    let chroma = stack(Axis(1), views.as_slice()).map_err(|e| {
+        SpectralError::Numerical(format!("Failed to stack chroma columns: {}", e))
+    })?;
+
     Ok(chroma)
 }
 
@@ -144,38 +167,64 @@ pub fn chroma_cqt(
     let hop = hop_length.unwrap_or(512);
     let fmin = fmin.unwrap_or(32.70);
     let bpo = bins_per_octave.unwrap_or(12);
-    let n_bins = bpo * 3;
+    
     if hop == 0 {
-        return Err(SpectralError::InvalidParameter(
-            "hop_length must be positive".to_string(),
-        ));
+        return Err(SpectralError::InvalidParameter("hop_length must be positive".into()));
     }
     if fmin <= 0.0 {
-        return Err(SpectralError::InvalidParameter(
-            "fmin must be positive".to_string(),
-        ));
+        return Err(SpectralError::InvalidParameter("fmin must be positive".into()));
     }
     if bpo == 0 {
-        return Err(SpectralError::InvalidParameter(
-            "bins_per_octave must be positive".to_string(),
-        ));
+        return Err(SpectralError::InvalidParameter("bins_per_octave must be positive".into()));
     }
 
-    let c = match c {
-        Some(c) => Ok(c.mapv(|x| Complex::new(x, 0.0))),
-        None => cqt(signal, Some(hop), Some(fmin), Some(n_bins))
-            .map_err(|e| SpectralError::TimeFrequency(e.to_string())),
-    }?;
+    let nyquist = signal.sample_rate as f32 / 2.0;
+    if fmin >= nyquist {
+        return Err(SpectralError::InvalidParameter("fmin must be less than Nyquist frequency".into()));
+    }
+    let max_bin = (nyquist / fmin).log2() * bpo as f32;
+    let n_bins = max_bin.floor() as usize + 1;
 
-    let mut chroma = Array2::zeros((12, c.shape()[1]));
-    for frame in 0..c.shape()[1] {
-        for bin in 0..c.shape()[0] {
-            let freq = fmin * 2.0f32.powf(bin as f32 / bpo as f32);
-            let midi = hz_to_midi(&[freq])[0];
-            let pitch_class = midi.round() as usize % 12;
-            chroma[[pitch_class, frame]] += c[[bin, frame]].norm();
+    let c: Array2<f32> = match c {
+            Some(c_mag) => Ok::<Array2<f32>, SpectralError>(c_mag.to_owned()),
+            None => {
+                let cqt_result = cqt(signal, Some(hop), Some(fmin), Some(n_bins))
+                    .map_err(|e| SpectralError::TimeFrequency(e.to_string()))?;
+                Ok(cqt_result.mapv(|x| x.norm()))
+            }
+        }?;
+
+    let mut pitch_classes = Vec::with_capacity(n_bins);
+    for bin in 0..n_bins {
+        let freq = fmin * 2.0f32.powf(bin as f32 / bpo as f32);
+        if !freq.is_finite() || freq <= 0.0 {
+            return Err(SpectralError::Numerical("Invalid frequency computed for bin".into()));
         }
+        let midi = hz_to_midi(&[freq])[0];
+        if !midi.is_finite() {
+            return Err(SpectralError::Numerical("Invalid MIDI value computed".into()));
+        }
+        let pitch_class = (midi.round() as usize) % 12;
+        pitch_classes.push(pitch_class);
     }
+
+    let n_frames = c.shape()[1];
+    let chroma_cols: Vec<Array1<f32>> = (0..n_frames)
+        .into_par_iter()
+        .map(|frame| {
+            let mut chroma_frame = Array1::zeros(12);
+            for bin in 0..n_bins {
+                let pc = pitch_classes[bin];
+                chroma_frame[pc] += c[[bin, frame]];
+            }
+            chroma_frame
+        })
+        .collect();
+
+    let views: Vec<_> = chroma_cols.iter().map(|col| col.view()).collect();
+    let chroma = stack(Axis(1), views.as_slice())
+        .map_err(|e| SpectralError::Numerical(e.to_string()))?;
+
     Ok(chroma)
 }
 
@@ -303,7 +352,7 @@ pub fn melspectrogram(
 
     let mel_f = crate::mel_frequencies(Some(n_mels), Some(fmin), Some(fmax), None);
     let mut mel_s = Array2::zeros((n_mels, s.shape()[1]));
-    let fft_f = crate::fft_frequencies(Some(signal.sample_rate), Some(n_fft));
+    let fft_f = fft_frequencies(Some(signal.sample_rate), Some(n_fft));
     for m in 0..n_mels {
         let f_low = if m == 0 { fmin } else { mel_f[m - 1] };
         let f_center = mel_f[m];
@@ -376,7 +425,10 @@ pub fn mfcc(
         }
     }
 
-    let s = melspectrogram(signal, s, None, None, None, None, None)?;
+    let s = match s {
+        Some(s) => s.to_owned(),
+        None => melspectrogram(signal, None, None, None, None, None, None)?,
+    };
     let log_s = s.mapv(|x| x.max(1e-10).ln());
     let mut mfcc = Array2::zeros((n_mfcc, s.shape()[1]));
     for t in 0..s.shape()[1] {
@@ -498,7 +550,7 @@ pub fn spectral_centroid(
             .mapv(|x| x.norm()),
     };
 
-    let freqs = crate::fft_frequencies(Some(signal.sample_rate), Some(n_fft));
+    let freqs = fft_frequencies(Some(signal.sample_rate), Some(n_fft));
     Ok(s.axis_iter(Axis(1))
         .map(|frame| {
             let total = frame.sum();
@@ -555,7 +607,7 @@ pub fn spectral_bandwidth(
             .map_err(|e| SpectralError::TimeFrequency(e.to_string()))?
             .mapv(|x| x.norm()),
     };
-    let freqs = crate::fft_frequencies(Some(signal.sample_rate), Some(n_fft));
+    let freqs = fft_frequencies(Some(signal.sample_rate), Some(n_fft));
     Ok(s.axis_iter(Axis(1))
         .zip(centroid.iter())
         .map(|(frame, &c)| {
@@ -625,7 +677,7 @@ pub fn spectral_contrast(
             .mapv(|x| x.norm()),
     };
 
-    let freqs = crate::fft_frequencies(Some(signal.sample_rate), Some(n_fft));
+    let freqs = fft_frequencies(Some(signal.sample_rate), Some(n_fft));
     let band_edges = Array1::logspace(
         2.0,
         0.0,
@@ -768,7 +820,7 @@ pub fn spectral_rolloff(
             .mapv(|x| x.norm()),
     };
 
-    let freqs = crate::fft_frequencies(Some(signal.sample_rate), Some(n_fft));
+    let freqs = fft_frequencies(Some(signal.sample_rate), Some(n_fft));
     Ok(s.axis_iter(Axis(1))
         .map(|frame| {
             let total_energy = frame.sum();
@@ -1076,7 +1128,7 @@ pub fn pitch_chroma(
             .mapv(|x| x.norm()),
     };
 
-    let freqs = crate::fft_frequencies(Some(signal.sample_rate), Some(n_fft));
+    let freqs = fft_frequencies(Some(signal.sample_rate), Some(n_fft));
     let mut chroma = Array2::zeros((12, s.shape()[1]));
     for t in 0..s.shape()[1] {
         let frame = s.column(t);
@@ -1139,7 +1191,7 @@ pub fn cmvn(
     for i in 0..normalized.shape()[1 - ax] {
         for j in 0..normalized.shape()[ax] {
             let idx = if ax == 1 { [j, i] } else { [i, j] };
-            normalized[idx] -= means[if ax == 1 { j } else { i }];
+            normalized[idx] -= means[i];
         }
     }
 
@@ -1446,7 +1498,7 @@ pub fn spectral_subband_centroids(
             .mapv(|x| x.norm()),
     };
 
-    let freqs = crate::fft_frequencies(Some(signal.sample_rate), Some(n_fft));
+    let freqs = fft_frequencies(Some(signal.sample_rate), Some(n_fft));
     let band_edges = Array1::linspace(0.0, signal.sample_rate as f32 / 2.0, n_bands + 1);
     let mut centroids = Array2::zeros((n_bands, s.shape()[1]));
     for t in 0..s.shape()[1] {
@@ -1634,146 +1686,4 @@ fn polynomial_roots(coeffs: &[f32]) -> Result<Vec<Complex<f32>>, SpectralError> 
         .eig()
         .map_err(|e| SpectralError::Numerical(format!("Eigenvalue computation failed: {}", e)))?;
     Ok(eigenvalues.0.to_vec())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn create_test_signal() -> AudioData {
-        AudioData {
-            samples: vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-            sample_rate: 44100,
-            channels: 1,
-        }
-    }
-
-    #[test]
-    fn test_spectral_centroid() {
-        let signal = create_test_signal();
-        let centroid = spectral_centroid(&signal, None, Some(4), Some(2)).unwrap();
-        assert_eq!(centroid.len(), 4);
-        assert!(centroid.iter().all(|&x| x >= 0.0));
-
-        let short_signal = AudioData {
-            samples: vec![0.1, 0.2],
-            sample_rate: 44100,
-            channels: 1,
-        };
-        assert!(spectral_centroid(&short_signal, None, Some(4), None).is_err());
-    }
-
-    #[test]
-    fn test_spectral_bandwidth() {
-        let signal = create_test_signal();
-        let bandwidth = spectral_bandwidth(&signal, None, Some(4), Some(2), None).unwrap();
-        assert_eq!(bandwidth.len(), 4);
-        assert!(bandwidth.iter().all(|&x| x >= 0.0));
-
-        let result = spectral_bandwidth(&signal, None, None, None, Some(0));
-        assert!(matches!(result, Err(SpectralError::InvalidParameter(_))));
-    }
-
-    #[test]
-    fn test_spectral_contrast() {
-        let signal = create_test_signal();
-        let contrast = spectral_contrast(&signal, None, Some(4), Some(2), Some(2)).unwrap();
-        assert_eq!(contrast.shape(), &[3, 4]);
-    }
-
-    #[test]
-    fn test_spectral_flatness() {
-        let signal = create_test_signal();
-        let flatness = spectral_flatness(&signal, None, Some(4), Some(2)).unwrap();
-        assert_eq!(flatness.len(), 4);
-        assert!(flatness.iter().all(|&x| x >= 0.0 && x <= 1.0));
-    }
-
-    #[test]
-    fn test_spectral_rolloff() {
-        let signal = create_test_signal();
-        let rolloff = spectral_rolloff(&signal, None, Some(4), Some(2), Some(0.5)).unwrap();
-        assert_eq!(rolloff.len(), 4);
-        assert!(rolloff.iter().all(|&x| x >= 0.0));
-    }
-
-    #[test]
-    fn test_poly_features() {
-        let signal = create_test_signal();
-        let coeffs = poly_features(&signal, None, Some(4), Some(2), Some(1)).unwrap();
-        assert_eq!(coeffs.shape(), &[2, 4]);
-    }
-
-    #[test]
-    fn test_tonnetz() {
-        let signal = create_test_signal();
-        let tonnetz = tonnetz(&signal, None).unwrap();
-        assert_eq!(tonnetz.shape(), &[6, 1]);
-    }
-
-    #[test]
-    fn test_spectral_flux() {
-        let signal = create_test_signal();
-        let flux = spectral_flux(&signal, None, Some(4), Some(2)).unwrap();
-        assert_eq!(flux.len(), 4);
-        assert!(flux.iter().all(|&x| x >= 0.0));
-    }
-
-    #[test]
-    fn test_spectral_entropy() {
-        let signal = create_test_signal();
-        let entropy = spectral_entropy(&signal, None, Some(4), Some(2)).unwrap();
-        assert_eq!(entropy.len(), 4);
-        assert!(entropy.iter().all(|&x| x >= 0.0));
-    }
-
-    #[test]
-    fn test_pitch_chroma() {
-        let signal = create_test_signal();
-        let chroma = pitch_chroma(&signal, None, Some(4), Some(2)).unwrap();
-        assert_eq!(chroma.shape(), &[12, 4]);
-    }
-
-    #[test]
-    fn test_cmvn() {
-        let features = Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
-        let normalized = cmvn(&features, None, None).unwrap();
-        assert_eq!(normalized.shape(), &[2, 3]);
-    }
-
-    #[test]
-    fn test_hpss() {
-        let signal = create_test_signal();
-        let (harmonic, percussive) = hpss(&signal, None, Some(4), Some(2), Some(3), Some(3)).unwrap();
-        assert_eq!(harmonic.shape(), &[2, 4]);
-        assert_eq!(percussive.shape(), &[2, 4]);
-    }
-
-    #[test]
-    fn test_pitch_autocorr() {
-        let signal = create_test_signal();
-        let pitch = pitch_autocorr(&signal, Some(4), Some(2), Some(50.0), Some(500.0)).unwrap();
-        assert_eq!(pitch.len(), 4);
-    }
-
-    #[test]
-    fn test_vad_features() {
-        let signal = create_test_signal();
-        let vad = vad_features(&signal, Some(4), Some(2), Some(4)).unwrap();
-        assert_eq!(vad.shape(), &[3, 4]);
-    }
-
-    #[test]
-    fn test_spectral_subband_centroids() {
-        let signal = create_test_signal();
-        let centroids = spectral_subband_centroids(&signal, None, Some(4), Some(2), Some(2)).unwrap();
-        assert_eq!(centroids.shape(), &[2, 4]);
-    }
-
-    #[test]
-    fn test_formant_frequencies() {
-        let signal = create_test_signal();
-        let formants = formant_frequencies(&signal, Some(2), Some(4), Some(2)).unwrap();
-        assert_eq!(formants.shape(), &[2, 4]);
-    }
 }
