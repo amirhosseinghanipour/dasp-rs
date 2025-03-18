@@ -343,9 +343,9 @@ pub fn stream_lazy<P: AsRef<Path>>(
 /// # Examples
 /// ```
 /// use std::path::Path;
-/// let sr = get_samplerate(Path::new("audio.wav"));
+/// let sr = get_sr(Path::new("audio.wav"));
 /// ```
-pub fn get_samplerate<P: AsRef<Path>>(path: P) -> Result<u32, AudioError> {
+pub fn get_sr<P: AsRef<Path>>(path: P) -> Result<u32, AudioError> {
     let reader = WavReader::open(path)?;
     Ok(reader.spec().sample_rate)
 }
