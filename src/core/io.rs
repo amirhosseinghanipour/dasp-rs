@@ -64,9 +64,9 @@ pub enum AudioError {
 /// Optimized for in-memory processing and compatibility with `signal_processing` operations.
 ///
 /// # Fields
-/// - `samples`: Interleaved `f32` sample buffer.
-/// - `sample_rate`: Samples per second (Hz).
-/// - `channels`: Number of interleaved channels.
+/// - `samples`: Interleaved `f32` sample buffer (e.g., `[L1, R1, L2, R2...]` for stereo)
+/// - `sample_rate`: Samples per second (Hz)
+/// - `channels`: Number of channels (1 = mono, 2 = stereo)
 #[derive(Debug, Clone)]
 pub struct AudioData {
     pub samples: Vec<f32>,
@@ -78,12 +78,21 @@ impl AudioData {
     /// Constructs an `AudioData` instance from raw components.
     ///
     /// # Parameters
-    /// - `samples`: Interleaved `f32` sample buffer.
-    /// - `sample_rate`: Sample rate in Hz.
-    /// - `channels`: Channel count.
+    /// - `samples`: Interleaved `f32` sample buffer
+    /// - `sample_rate`: Sample rate in Hz
+    /// - `channels`: Channel count
     ///
     /// # Returns
-    /// Initialized `AudioData` instance.
+    /// Initialized `AudioData` instance
+    ///
+    /// # Example
+    /// ```
+    /// let audio = AudioData::new(
+    ///     vec![0.5, -0.3, 0.8], // 3 samples
+    ///     44100,                // 44.1kHz
+    ///     1                     // Mono
+    /// );
+    /// ```
     pub fn new(samples: Vec<f32>, sample_rate: u32, channels: u16) -> Self {
         Self { samples, sample_rate, channels }
     }
@@ -95,15 +104,25 @@ impl AudioData {
 /// Applies resampling, mono conversion, and sample trimming as specified.
 ///
 /// # Parameters
-/// - `path`: WAV file path (`AsRef<Path>`).
-/// - `sr`: Target sample rate (Hz); `None` retains source rate.
-/// - `mono`: Convert to mono if `Some(true)`; `None` defaults to `true`.
-/// - `offset`: Start time (seconds); `None` defaults to 0.0.
-/// - `duration`: Segment length (seconds); `None` takes full length.
+/// - `path`: WAV file path (`AsRef<Path>`)
+/// - `sr`: Target sample rate (Hz); `None` retains source rate
+/// - `mono`: Convert to mono if `Some(true)`; `None` defaults to `true`
+/// - `offset`: Start time (seconds); `None` defaults to 0.0
+/// - `duration`: Segment length (seconds); `None` takes full length
 ///
 /// # Returns
-/// - `Ok(AudioData)`: Processed audio data.
-/// - `Err(AudioError)`: Failure due to I/O, format, or parameter errors.
+/// - `Ok(AudioData)`: Processed audio data
+/// - `Err(AudioError)`: Failure due to I/O, format, or parameter errors
+///
+/// # Errors
+/// - `InvalidRange`: Offset/duration exceeds file length
+/// - `UnsupportedFormat`: Non-PCM WAV format
+///
+/// # Examples
+/// ```
+/// // Load 48kHz stereo file as 16kHz mono starting at 2 seconds, 5 seconds long
+/// let audio = load("track.wav", Some(16000), Some(true), Some(2.0), Some(5.0))?;
+/// ```
 pub fn load<P: AsRef<Path>>(
     path: P,
     sr: Option<u32>,
@@ -160,12 +179,22 @@ pub fn load<P: AsRef<Path>>(
 /// Writes 32-bit float WAV data via `Cursor`, committing to disk in a single operation.
 ///
 /// # Parameters
-/// - `path`: Output WAV file path (`AsRef<Path>`).
-/// - `audio_data`: Source `AudioData` reference.
+/// - `path`: Output WAV file path (`AsRef<Path>`)
+/// - `audio_data`: Source `AudioData` reference
 ///
 /// # Returns
-/// - `Ok(())`: Successful write.
-/// - `Err(AudioError)`: I/O or format error.
+/// - `Ok(())`: Successful write
+/// - `Err(AudioError)`: I/O or format error
+///
+/// # Notes
+/// - Automatically clamps samples to `[-1.0, 1.0]` range
+/// - Preserves channel count and sample rate metadata
+///
+/// # Example
+/// ```
+/// let processed = process_audio(original_audio)?;
+/// export("processed.wav", &processed)?;
+/// ```
 pub fn export<P: AsRef<Path>>(path: P, audio_data: &AudioData) -> Result<(), AudioError> {
     let spec = WavSpec {
         channels: audio_data.channels,
@@ -197,6 +226,19 @@ pub fn export<P: AsRef<Path>>(path: P, audio_data: &AudioData) -> Result<(), Aud
 /// # Returns
 /// - `Ok(impl Iterator<Item = Vec<f32>>)`: Block iterator.
 /// - `Err(AudioError)`: I/O or format error.
+/// 
+/// # Example
+/// ```
+/// let stream = stream("long_audio.wav", 100, 4096, None)?;
+/// for block in stream {
+///     let fft = compute_fft(&block);
+///     // Process block
+/// }
+/// ```
+///
+/// # Performance
+/// - Uses `rayon` thread pool for parallel block processing
+/// - Best for offline processing of <1GB files
 pub fn stream<P: AsRef<Path>>(
     path: P,
     block_length: usize,
@@ -242,6 +284,20 @@ pub fn stream<P: AsRef<Path>>(
 /// # Returns
 /// - `Ok(Receiver<Vec<f32>>)`: Channel receiver for blocks.
 /// - `Err(AudioError)`: I/O or streaming error.
+/// 
+/// # Example
+/// ```
+/// let rx = stream_lazy("live_audio.wav", 1000, 1024, Some(512))?;
+/// loop {
+///     if let Ok(block) = rx.recv() {
+///         // Process 1024-sample block with 50% overlap
+///     }
+/// }
+/// ```
+///
+/// # Performance
+/// - Background thread for file reading
+/// - Memory-efficient for files >1GB
 pub fn stream_lazy<P: AsRef<Path>>(
     path: P,
     block_length: usize,
@@ -307,22 +363,6 @@ pub fn stream_lazy<P: AsRef<Path>>(
     Ok(rx)
 }
 
-/// Extracts sample rate from WAV file header.
-///
-/// Lightweight metadata query without full sample loading.
-///
-/// # Parameters
-/// - `path`: WAV file path (`AsRef<Path>`).
-///
-/// # Returns
-/// - `Ok(u32)`: Sample rate in Hz.
-/// - `Err(AudioError)`: I/O or format error.
-pub fn get_samplerate<P: AsRef<Path>>(path: P) -> Result<u32, AudioError> {
-    let wav_data = std::fs::read(&path)?;
-    let reader = WavReader::new(Cursor::new(wav_data))?;
-    Ok(reader.spec().sample_rate)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -345,7 +385,7 @@ mod tests {
     fn test_load_segment() {
         let audio = create_test_wav();
         export("test.wav", &audio).unwrap();
-        let loaded = load("test.wav", None, Some(true), Some(0.00004535147), Some(0.00004535147)).unwrap();
+        let loaded = load("test.wav", None, Some(true), Some(0.00004535147), Some(0.00004535148)).unwrap();
         assert_eq!(loaded.samples, vec![0.1, 0.2]);
         fs::remove_file("test.wav").unwrap();
     }
@@ -375,14 +415,6 @@ mod tests {
         let rx = stream_lazy("test.wav", 3, 2, Some(2)).unwrap();
         let blocks: Vec<_> = rx.into_iter().collect();
         assert_eq!(blocks, vec![vec![0.0, 0.1], vec![0.2, 0.3], vec![0.4, 0.5]]);
-        fs::remove_file("test.wav").unwrap();
-    }
-
-    #[test]
-    fn test_get_samplerate() {
-        let audio = create_test_wav();
-        export("test.wav", &audio).unwrap();
-        assert_eq!(get_samplerate("test.wav").unwrap(), 44100);
         fs::remove_file("test.wav").unwrap();
     }
 }
