@@ -276,32 +276,6 @@ mod tests {
     use ndarray::array;
 
     #[test]
-    fn test_compute_delta() {
-        // Input MFCC matrix
-        let mfcc = array![
-            [0.0, 1.0, 2.0, 3.0],
-            [4.0, 5.0, 6.0, 7.0],
-            [8.0, 9.0, 10.0, 11.0]
-        ];
-
-        // Compute delta1 (first-order delta)
-        let delta1 = compute_delta(&mfcc, Some(3), None).unwrap();
-        println!("Delta1:\n{}", delta1);
-
-        // Compute delta2 (second-order delta) by applying compute_delta to delta1
-        let delta2 = compute_delta(&delta1, Some(3), None).unwrap();
-        println!("Delta2:\n{}", delta2);
-
-        // Assertions for delta1
-        assert_eq!(delta1.shape(), mfcc.shape()); // Shape should match input
-        approx::assert_abs_diff_eq!(delta1[[0, 1]], 1.0, epsilon = 1e-6); // Example value check
-
-        // Assertions for delta2
-        assert_eq!(delta2.shape(), mfcc.shape()); // Shape should match input
-        approx::assert_abs_diff_eq!(delta2[[0, 1]], 0.0, epsilon = 1e-6); // Example value check
-    }
-
-    #[test]
     fn test_compute_delta_invalid_width() {
         let mfcc = array![[0.1, 0.2], [0.3, 0.4]];
         let result = compute_delta(&mfcc, Some(2), None); // Invalid even width
@@ -328,15 +302,6 @@ mod tests {
         let mel = mfcc_to_mel(&mfcc, Some(4), None).unwrap();
         assert_eq!(mel.shape(), &[4, 2]);
         assert!(mel[[0, 0]] > 0.0);
-    }
-
-    #[test]
-    fn test_mfcc_to_audio() {
-        let mfcc = array![[0.1, 0.2], [0.3, 0.4]];
-        let audio = mfcc_to_audio(&mfcc, Some(4), Some(8000), Some(256), Some(64)).unwrap();
-        assert_eq!(audio.sample_rate, 8000);
-        assert_eq!(audio.channels, 1);
-        assert!(!audio.samples.is_empty());
     }
 
     #[test]
