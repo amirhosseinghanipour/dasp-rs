@@ -56,6 +56,10 @@ pub enum AudioError {
     /// Numerical computation failure (e.g., overflow).
     #[error("Computation error: {0}")]
     ComputationFailed(String),
+
+    /// File not found at the specified path.
+    #[error("File not found: {0}")]
+    FileNotFound(String),
 }
 
 /// Core audio data container for WAV-based DSP workflows.
@@ -115,8 +119,8 @@ impl AudioData {
 /// - `Err(AudioError)`: Failure due to I/O, format, or parameter errors
 ///
 /// # Errors
+/// - `FileNotFound`: The specified file does not exist.
 /// - `InvalidRange`: Offset/duration exceeds file length
-/// - `UnsupportedFormat`: Non-PCM WAV format
 ///
 /// # Examples
 /// ```
@@ -130,6 +134,11 @@ pub fn load<P: AsRef<Path>>(
     offset: Option<f32>,
     duration: Option<f32>,
 ) -> Result<AudioData, AudioError> {
+    let path = path.as_ref();
+    if !path.exists() {
+        return Err(AudioError::FileNotFound(path.to_string_lossy().into_owned()));
+    }
+
     let wav_data = std::fs::read(&path)?;
     let mut reader = WavReader::new(Cursor::new(wav_data))?;
     let spec = reader.spec();
@@ -227,6 +236,9 @@ pub fn export<P: AsRef<Path>>(path: P, audio_data: &AudioData) -> Result<(), Aud
 /// - `Ok(impl Iterator<Item = Vec<f32>>)`: Block iterator.
 /// - `Err(AudioError)`: I/O or format error.
 /// 
+/// # Error
+/// - `FileNotFound`: The specified file does not exist.
+/// 
 /// # Example
 /// ```
 /// let stream = stream("long_audio.wav", 100, 4096, None)?;
@@ -245,6 +257,11 @@ pub fn stream<P: AsRef<Path>>(
     frame_length: usize,
     hop_length: Option<usize>,
 ) -> Result<impl Iterator<Item = Vec<f32>>, AudioError> {
+    let path = path.as_ref();
+    if !path.exists() {
+        return Err(AudioError::FileNotFound(path.to_string_lossy().into_owned()));
+    }
+
     let wav_data = std::fs::read(&path)?;
     let mut reader = WavReader::new(Cursor::new(wav_data))?;
     let spec = reader.spec();
@@ -285,6 +302,9 @@ pub fn stream<P: AsRef<Path>>(
 /// - `Ok(Receiver<Vec<f32>>)`: Channel receiver for blocks.
 /// - `Err(AudioError)`: I/O or streaming error.
 /// 
+/// # Error
+/// - `FileNotFound`: The specified file does not exist.
+/// 
 /// # Example
 /// ```
 /// let rx = stream_lazy("live_audio.wav", 1000, 1024, Some(512))?;
@@ -304,6 +324,11 @@ pub fn stream_lazy<P: AsRef<Path>>(
     frame_length: usize,
     hop_length: Option<usize>,
 ) -> Result<Receiver<Vec<f32>>, AudioError> {
+    let path = path.as_ref();
+    if !path.exists() {
+        return Err(AudioError::FileNotFound(path.to_string_lossy().into_owned()));
+    }
+
     let wav_data = std::fs::read(&path)?;
     let mut reader = WavReader::new(Cursor::new(wav_data))?;
     let spec = reader.spec();
@@ -363,7 +388,7 @@ pub fn stream_lazy<P: AsRef<Path>>(
     Ok(rx)
 }
 
-#[cfg(test)]
+#[cfg(test)]#[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
@@ -416,5 +441,46 @@ mod tests {
         let blocks: Vec<_> = rx.into_iter().collect();
         assert_eq!(blocks, vec![vec![0.0, 0.1], vec![0.2, 0.3], vec![0.4, 0.5]]);
         fs::remove_file("test.wav").unwrap();
+    }
+
+    #[test]
+    fn test_load_file_not_found() {
+        // Ensure the file does not exist
+        if std::path::Path::new("test.wav").exists() {
+            fs::remove_file("test.wav").unwrap();
+        }
+
+        // Attempt to load the file and expect an error
+        let result = load("test.wav", None, Some(true), None, None);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), AudioError::FileNotFound(_)));
+    }
+
+    #[test]
+    fn test_stream_file_not_found() {
+        // Ensure the file does not exist
+        if std::path::Path::new("test.wav").exists() {
+            fs::remove_file("test.wav").unwrap();
+        }
+
+        // Attempt to stream the file and expect an error
+        let result = stream("test.wav", 3, 2, Some(2));
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(matches!(e, AudioError::FileNotFound(_)));
+        }
+    }
+
+    #[test]
+    fn test_stream_lazy_file_not_found() {
+        // Ensure the file does not exist
+        if std::path::Path::new("test.wav").exists() {
+            fs::remove_file("test.wav").unwrap();
+        }
+
+        // Attempt to stream the file lazily and expect an error
+        let result = stream_lazy("test.wav", 3, 2, Some(2));
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), AudioError::FileNotFound(_)));
     }
 }
