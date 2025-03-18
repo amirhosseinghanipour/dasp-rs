@@ -104,11 +104,6 @@ impl AudioData {
 /// # Returns
 /// - `Ok(AudioData)`: Processed audio data.
 /// - `Err(AudioError)`: Failure due to I/O, format, or parameter errors.
-///
-/// # Notes
-/// - In-memory `Cursor` minimizes disk I/O overhead.
-/// - Assumes `to_mono` and `resample` are optimized in `signal_processing`.
-/// - Sample trimming uses iterator `skip` and `take` for efficiency.
 pub fn load<P: AsRef<Path>>(
     path: P,
     sr: Option<u32>,
@@ -171,10 +166,6 @@ pub fn load<P: AsRef<Path>>(
 /// # Returns
 /// - `Ok(())`: Successful write.
 /// - `Err(AudioError)`: I/O or format error.
-///
-/// # Notes
-/// - Uses 32-bit float PCM for maximum precision.
-/// - In-memory buffering reduces filesystem calls.
 pub fn export<P: AsRef<Path>>(path: P, audio_data: &AudioData) -> Result<(), AudioError> {
     let spec = WavSpec {
         channels: audio_data.channels,
@@ -206,10 +197,6 @@ pub fn export<P: AsRef<Path>>(path: P, audio_data: &AudioData) -> Result<(), Aud
 /// # Returns
 /// - `Ok(impl Iterator<Item = Vec<f32>>)`: Block iterator.
 /// - `Err(AudioError)`: I/O or format error.
-///
-/// # Notes
-/// - Full file loaded into memory; use `stream_lazy` for large files.
-/// - Blocks padded with zeros if shorter than `frame_length`.
 pub fn stream<P: AsRef<Path>>(
     path: P,
     block_length: usize,
@@ -255,11 +242,6 @@ pub fn stream<P: AsRef<Path>>(
 /// # Returns
 /// - `Ok(Receiver<Vec<f32>>)`: Channel receiver for blocks.
 /// - `Err(AudioError)`: I/O or streaming error.
-///
-/// # Notes
-/// - Chunks processed in parallel with `rayon` when sufficient samples are buffered.
-/// - Final block padded with zeros if incomplete.
-/// - Thread exits on receiver disconnect or block limit.
 pub fn stream_lazy<P: AsRef<Path>>(
     path: P,
     block_length: usize,
