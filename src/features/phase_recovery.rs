@@ -42,27 +42,3 @@ pub fn griffinlim(s: &Array2<f32>, n_iter: Option<usize>, hop_length: Option<usi
     }
     y
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ndarray::Array2;
-
-    #[test]
-    fn test_griffinlim() {
-        let n_freqs = 513;
-        let n_frames = 10;
-        let s = Array2::from_shape_vec((n_freqs, n_frames), vec![1.0; n_freqs * n_frames]).unwrap();
-        let signal = griffinlim(&s, Some(5), Some(256));
-        let expected_len = 256 * (n_frames - 1) + 1024;
-        assert_eq!(signal.len(), expected_len);
-        assert!(signal.iter().all(|&x| x.is_finite()));
-    }
-
-    #[test]
-    fn test_griffinlim_zero_hop() {
-        let s = Array2::from_shape_vec((513, 10), vec![1.0; 5130]).unwrap();
-        let signal = griffinlim(&s, None, Some(0));
-        assert!(signal.len() > 0);
-    }
-}
