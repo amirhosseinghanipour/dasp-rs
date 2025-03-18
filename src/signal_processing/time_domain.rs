@@ -1,4 +1,4 @@
-use crate::audio_io::AudioError;
+use crate::io::core::AudioError;
 use ndarray::Array1;
 
 /// Computes the autocorrelation of a signal.

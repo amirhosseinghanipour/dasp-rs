@@ -1,4 +1,4 @@
-use crate::audio_io::AudioData;
+use crate::io::AudioData;
 use ndarray::Array2;
 
 /// Calculates the duration of an audio signal in seconds.
@@ -36,8 +36,8 @@ pub fn get_duration(audio: &AudioData) -> f32 {
 /// // Assuming test.wav is 2 seconds long at 44100 Hz
 /// assert!(duration.is_ok_and(|d| d == 2.0));
 /// ```
-pub fn get_duration_from_path<P: AsRef<std::path::Path>>(path: P) -> Result<f32, crate::audio_io::AudioError> {
-    let audio = crate::audio_io::load(path, None, None, None, None)?;
+pub fn get_duration_from_path<P: AsRef<std::path::Path>>(path: P) -> Result<f32, crate::io::AudioError> {
+    let audio = crate::io::load(path, None, None, None, None)?;
     Ok(get_duration(&audio))
 }
 

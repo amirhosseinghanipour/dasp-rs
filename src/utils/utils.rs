@@ -1,7 +1,7 @@
 use hound::{WavReader, WavWriter};
 use std::path::Path;
-use crate::audio_io::wav::AudioError;
-use crate::audio_io::wav::AudioData;
+use crate::io::core::AudioError;
+use crate::io::core::AudioData;
 
 /// Gets metadata from a WAV file.
 ///

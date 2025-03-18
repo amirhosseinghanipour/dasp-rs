@@ -36,7 +36,7 @@
 /// Audio input/output module.
 ///
 /// Provides functions for loading and saving audio files, as well as handling audio data structures.
-pub mod audio_io;
+pub mod io;
 
 /// Signal processing module.
 ///
@@ -69,7 +69,7 @@ pub mod utils;
 pub mod pitch;
 
 // Re-export all public items from the modules for convenient access at the crate root.
-pub use audio_io::*;
+pub use io::*;
 pub use signal_processing::*;
 pub use signal_generation::*;
 pub use features::*;
