@@ -1,54 +1,5 @@
 use ndarray::{Array1, Array2, Axis};
 
-/// Computes delta coefficients of arbitrary order from a 2D array.
-///
-/// # Arguments
-/// * `data` - Input 2D array (typically features × time)
-/// * `width` - Optional window width for delta computation (defaults to 9)
-/// * `order` - Optional order of delta (defaults to 1)
-/// * `axis` - Optional axis along which to compute deltas (-1 for time, 0 for features; defaults to -1)
-///
-/// # Returns
-/// Returns a 2D array of the same shape as `data` containing the delta coefficients.
-///
-/// # Examples
-/// ```
-/// use ndarray::Array2;
-/// let data = Array2::from_shape_vec((2, 3), vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
-/// let delta = delta(&data, None, None, None);
-/// ```
-pub fn delta(
-    data: &Array2<f32>,
-    width: Option<usize>,
-    order: Option<usize>,
-    axis: Option<isize>,
-) -> Array2<f32> {
-    let width = width.unwrap_or(9);
-    let order = order.unwrap_or(1);
-    let axis = axis.unwrap_or(-1);
-    let mut result = data.to_owned();
-    for _ in 0..order {
-        let mut delta = Array2::zeros(result.dim());
-        let half_width = width / 2;
-        let weights: Vec<f32> = (1..=half_width).map(|i| i as f32).collect();
-        let norm = weights.iter().map(|x| x.powi(2)).sum::<f32>();
-        for i in 0..result.shape()[axis.unsigned_abs()] {
-            let slice = result.index_axis(Axis(axis.unsigned_abs()), i);
-            for j in 0..slice.len() {
-                let mut sum = 0.0;
-                for w in 0..weights.len() {
-                    let left = (j as isize - w as isize - 1).max(0) as usize;
-                    let right = (j + w + 1).min(slice.len() - 1);
-                    sum += weights[w] * (slice[right] - slice[left]);
-                }
-                delta[[if axis < 0 { j } else { i }, if axis < 0 { i } else { j }]] = sum / norm;
-            }
-        }
-        result = delta;
-    }
-    result
-}
-
 /// Stacks delayed copies of a 2D array for temporal context.
 ///
 /// # Arguments
@@ -173,4 +124,55 @@ pub fn zero_crossing_rate(
         zcr[i] = count as f32 / frame_len as f32;
     }
     zcr
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ndarray::array;
+
+    #[test]
+    fn test_stack_memory() {
+        let data = array![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
+        let result = stack_memory(&data, Some(2), Some(1));
+        let expected = array![
+            [1.0, 2.0, 3.0],
+            [4.0, 5.0, 6.0],
+            [1.0, 1.0, 2.0],
+            [4.0, 4.0, 5.0]
+        ];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_temporal_kurtosis_y() {
+        let y = vec![1.0, -1.0, 1.0, -1.0];
+        let result = temporal_kurtosis(Some(&y), None, Some(4), Some(4));
+        let expected = array![-2.0];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_temporal_kurtosis_s() {
+        let s = array![[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]];
+        let result = temporal_kurtosis(None, Some(&s), None, None);
+        let expected = array![0.0, 0.0, 0.0];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_zero_crossing_rate() {
+        let y = vec![1.0, -1.0, 2.0, -2.0, 1.0];
+        let result = zero_crossing_rate(&y, Some(2), Some(1));
+        let expected = array![0.5, 0.5, 0.5, 0.5];
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_zero_crossing_rate_full() {
+        let y = vec![1.0, -1.0, 2.0, -2.0, 1.0];
+        let result = zero_crossing_rate(&y, Some(5), Some(5));
+        let expected = array![0.8];
+        assert_eq!(result, expected);
+    }
 }
