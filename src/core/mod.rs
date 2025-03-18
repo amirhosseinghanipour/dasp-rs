@@ -1,5 +1,5 @@
-pub mod core;
+pub mod io;
 pub mod signal_op;
 
-pub use core::*;
+pub use io::*;
 pub use signal_op::*;

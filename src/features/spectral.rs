@@ -5,7 +5,7 @@ use crate::hz_to_midi;
 use ndarray_linalg::{Solve, Eig};
 use num_complex::Complex;
 use thiserror::Error;
-use crate::io::core::{AudioError, AudioData};
+use crate::core::io::{AudioError, AudioData};
 
 /// Custom error types for spectral signal processing operations.
 ///

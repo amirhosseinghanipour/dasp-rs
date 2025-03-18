@@ -1,4 +1,4 @@
-use crate::io::core::AudioData;
+use crate::core::io::AudioData;
 use thiserror::Error;
 
 /// Custom error types for amplitude processing operations.

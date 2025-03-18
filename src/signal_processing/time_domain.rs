@@ -1,4 +1,4 @@
-use crate::io::core::{AudioData, AudioError};
+use crate::core::io::{AudioData, AudioError};
 use ndarray::Array1;
 use thiserror::Error;
 

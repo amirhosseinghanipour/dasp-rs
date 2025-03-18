@@ -1,6 +1,6 @@
 use rubato::{Resampler, SincFixedIn, SincInterpolationType, SincInterpolationParameters, WindowFunction};
 use thiserror::Error;
-use crate::io::AudioError;
+use crate::core::AudioError;
 
 /// Custom error type for resampling operations.
 ///
