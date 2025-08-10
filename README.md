@@ -90,4 +90,4 @@ Contributing steps:
 5. Open a pull request.
 
 ## License
-`dasp-rs` is licensed under the CC-BY-NC-4.0 License. See `LICENSE` for details.
+`dasp-rs` is licensed under the GPLv3 License. See `LICENSE` for details.
