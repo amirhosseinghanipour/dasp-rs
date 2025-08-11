@@ -9,7 +9,7 @@ use rayon::prelude::*;
 #[derive(Error, Debug)]
 pub enum SignalOpError {
     /// Signals have incompatible sample lengths for binary operations.
-    #[error("Sample length mismatch: {0} vs {0}")]
+    #[error("Sample length mismatch: {0} vs {1}")]
     LengthMismatch(usize, usize),
 
     /// Division by zero encountered at a specific sample index.
