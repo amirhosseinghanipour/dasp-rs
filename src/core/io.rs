@@ -153,44 +153,58 @@ pub fn load<P: AsRef<Path>>(
     let mut reader = WavReader::new(Cursor::new(wav_data))?;
     let spec = reader.spec();
     let sample_rate = spec.sample_rate;
+    let channels = spec.channels as usize;
 
-    let start = (offset.unwrap_or(0.0) * sample_rate as f32) as usize;
-    let len = duration.map(|d| (d * sample_rate as f32) as usize);
-
-    let samples: Vec<f32> = match spec.sample_format {
-        SampleFormat::Float => reader.samples::<f32>()
-            .skip(start)
-            .take(len.unwrap_or(usize::MAX))
-            .map(|s| s.unwrap())
-            .collect(),
-        SampleFormat::Int => reader.samples::<i16>()
-            .skip(start)
-            .take(len.unwrap_or(usize::MAX))
-            .map(|s| s.unwrap() as f32 / i16::MAX as f32)
-            .collect(),
+    // Read all samples safely and normalize to f32 without panicking
+    let all_samples: Vec<f32> = match spec.sample_format {
+        SampleFormat::Float => reader
+            .samples::<f32>()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(AudioError::HoundError)?,
+        SampleFormat::Int => reader
+            .samples::<i16>()
+            .map(|r| r.map(|v| v as f32 / 32768.0))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(AudioError::HoundError)?,
     };
 
-    if start >= samples.len() && !samples.is_empty() {
+    // Compute time-based slicing in frames, then convert to sample indices
+    let start_frames: usize = (offset.unwrap_or(0.0) * sample_rate as f32) as usize;
+    let len_frames_opt: Option<usize> = duration.map(|d| (d * sample_rate as f32) as usize);
+
+    let total_frames: usize = all_samples.len() / channels;
+    if start_frames > total_frames {
         return Err(AudioError::InvalidRange);
     }
 
-    let mut samples = samples;
-    let channels = spec.channels as usize;
+    let start_samples: usize = start_frames.saturating_mul(channels);
+    let take_samples: usize = match len_frames_opt {
+        Some(frames) => frames.saturating_mul(channels),
+        None => all_samples.len().saturating_sub(start_samples),
+    };
+    let end_samples: usize = (start_samples + take_samples).min(all_samples.len());
+
+    let mut windowed: Vec<f32> = all_samples[start_samples..end_samples].to_vec();
+
     if channels > 1 && mono.unwrap_or(true) {
-        samples = to_mono(&samples, channels);
+        windowed = to_mono(&windowed, channels);
     }
 
     let final_samples = if let Some(target_samplerate) = sr {
         if target_samplerate != sample_rate {
-            resample(&samples, sample_rate, target_samplerate)?
+            resample(&windowed, sample_rate, target_samplerate)?
         } else {
-            samples
+            windowed
         }
     } else {
-        samples
+        windowed
     };
 
-    Ok(AudioData::new(final_samples, sr.unwrap_or(sample_rate), if mono.unwrap_or(true) { 1 } else { spec.channels }))
+    Ok(AudioData::new(
+        final_samples,
+        sr.unwrap_or(sample_rate),
+        if mono.unwrap_or(true) { 1 } else { spec.channels },
+    ))
 }
 
 /// Exports `AudioData` to a WAV file using in-memory buffering.
@@ -229,11 +243,13 @@ pub fn export<P: AsRef<Path>>(path: P, audio_data: &AudioData) -> Result<(), Aud
     };
 
     let mut buffer = Vec::with_capacity(audio_data.samples.len() * 4 + 44); // Rough WAV size estimate
-    let mut writer = WavWriter::new(Cursor::new(&mut buffer), spec)?;
+    let mut writer = WavWriter::new(Cursor::new(&mut buffer), spec).map_err(AudioError::HoundError)?;
     for &sample in &audio_data.samples {
-        writer.write_sample(sample)?;
+        // Clamp to [-1.0, 1.0] and ensure finite before writing
+        let s = if sample.is_finite() { sample.clamp(-1.0, 1.0) } else { 0.0 };
+        writer.write_sample(s).map_err(AudioError::HoundError)?;
     }
-    writer.finalize()?;
+    writer.finalize().map_err(AudioError::HoundError)?;
     std::fs::write(path, buffer)?;
     Ok(())
 }
@@ -284,21 +300,34 @@ pub fn stream<P: AsRef<Path>>(
     let wav_data = std::fs::read(&path)?;
     let mut reader = WavReader::new(Cursor::new(wav_data))?;
     let spec = reader.spec();
-    let hop = hop_length.unwrap_or(frame_length);
+    let channels = spec.channels as usize;
+    let hop_frames = hop_length.unwrap_or(frame_length);
+    let hop_samples = hop_frames.saturating_mul(channels);
+    let frame_len_samples = frame_length.saturating_mul(channels);
 
     let samples: Vec<f32> = match spec.sample_format {
-        SampleFormat::Float => reader.samples::<f32>().map(|s| s.unwrap()).collect(),
-        SampleFormat::Int => reader.samples::<i16>().map(|s| s.unwrap() as f32 / i16::MAX as f32).collect(),
+        SampleFormat::Float => reader
+            .samples::<f32>()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(AudioError::HoundError)?,
+        SampleFormat::Int => reader
+            .samples::<i16>()
+            .map(|r| r.map(|v| v as f32 / 32768.0))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(AudioError::HoundError)?,
     };
 
-    let indices: Vec<usize> = (0..samples.len()).step_by(hop).take(block_length).collect();
+    let indices: Vec<usize> = (0..samples.len())
+        .step_by(hop_samples)
+        .take(block_length)
+        .collect();
     let blocks: Vec<Vec<f32>> = indices
         .into_par_iter()
         .map(|i| {
-            let end = (i + frame_length).min(samples.len());
-            let mut block = Vec::with_capacity(frame_length);
+            let end = (i + frame_len_samples).min(samples.len());
+            let mut block = Vec::with_capacity(frame_len_samples);
             block.extend_from_slice(&samples[i..end]);
-            block.resize(frame_length, 0.0);
+            block.resize(frame_len_samples, 0.0);
             block
         })
         .collect();
@@ -354,36 +383,44 @@ pub fn stream_lazy<P: AsRef<Path>>(
     let wav_data = std::fs::read(&path)?;
     let mut reader = WavReader::new(Cursor::new(wav_data))?;
     let spec = reader.spec();
-    let hop = hop_length.unwrap_or(frame_length);
+    let channels = spec.channels as usize;
+    let hop_frames = hop_length.unwrap_or(frame_length);
+    let hop_samples = hop_frames.saturating_mul(channels);
+    let frame_len_samples = frame_length.saturating_mul(channels);
 
     let (tx, rx) = channel();
     std::thread::spawn(move || {
-        let samples_iter: Box<dyn Iterator<Item = Result<f32, _>>> = match spec.sample_format {
+        let samples_iter: Box<dyn Iterator<Item = Result<f32, hound::Error>>> = match spec.sample_format {
             SampleFormat::Float => Box::new(reader.samples::<f32>()),
-            SampleFormat::Int => Box::new(reader.samples::<i16>().map(|s| s.map(|v| v as f32 / i16::MAX as f32))),
+            SampleFormat::Int => Box::new(reader.samples::<i16>().map(|s| s.map(|v| v as f32 / 32768.0))),
         };
 
-        let mut chunk = Vec::with_capacity(frame_length * block_length);
+        let mut chunk = Vec::with_capacity(frame_len_samples * block_length);
         let mut block_count = 0;
 
-        for sample in samples_iter {
-            let sample = sample.unwrap_or(0.0);
+        for sample_result in samples_iter {
+            let sample = match sample_result {
+                Ok(s) => s,
+                Err(_) => return, // stop on decode error
+            };
             chunk.push(sample);
 
-            if chunk.len() >= frame_length && (chunk.len() % hop == 0 || chunk.len() >= frame_length * block_length) {
+            if chunk.len() >= frame_len_samples
+                && (chunk.len() % hop_samples == 0 || chunk.len() >= frame_len_samples * block_length)
+            {
                 let indices: Vec<usize> = (0..chunk.len())
-                    .step_by(hop)
+                    .step_by(hop_samples)
                     .take(block_length - block_count)
                     .collect();
-                let drain_to = indices.last().map_or(0, |&i| (i + hop).min(chunk.len()));
+                let drain_to = indices.last().map_or(0, |&i| (i + hop_samples).min(chunk.len()));
 
                 let blocks: Vec<Vec<f32>> = indices
                     .into_par_iter()
                     .map(|i| {
-                        let end = (i + frame_length).min(chunk.len());
-                        let mut block = Vec::with_capacity(frame_length);
+                        let end = (i + frame_len_samples).min(chunk.len());
+                        let mut block = Vec::with_capacity(frame_len_samples);
                         block.extend_from_slice(&chunk[i..end]);
-                        block.resize(frame_length, 0.0);
+                        block.resize(frame_len_samples, 0.0);
                         block
                     })
                     .collect();
