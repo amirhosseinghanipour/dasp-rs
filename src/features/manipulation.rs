@@ -125,4 +125,3 @@ pub fn zero_crossing_rate(
     }
     zcr
 }
-// tests removed (non-core module)
