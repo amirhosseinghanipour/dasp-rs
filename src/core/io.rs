@@ -220,8 +220,8 @@ pub fn load<P: AsRef<Path>>(
 /// - `Err(AudioError)`: I/O or format error
 ///
 /// # Errors
-/// - `AudioError::IoError`: Failed to write to filesystem
-/// - `AudioError::HoundError`: WAV format encoding error
+    /// - `AudioError::IoError`: Failed to write to filesystem
+    /// - `AudioError::HoundError`: WAV format encoding error
 ///
 /// # Notes
 /// - Automatically clamps samples to `[-1.0, 1.0]` range
